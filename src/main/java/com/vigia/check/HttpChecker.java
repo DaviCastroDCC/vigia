@@ -1,0 +1,65 @@
+package com.vigia.check;
+
+import com.vigia.config.MonitorProperties;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Optional;
+
+/** Faz a requisição HTTP e mede o tempo de resposta. Status menor que 400 conta como "no ar". */
+@Component
+public class HttpChecker {
+
+    private final HttpClient client;
+    private final Duration timeout;
+    private final UrlGuard urlGuard;
+
+    public HttpChecker(MonitorProperties properties, UrlGuard urlGuard) {
+        this.timeout = Duration.ofSeconds(properties.checker().timeoutSeconds());
+        this.urlGuard = urlGuard;
+        // Redirecionamentos não são seguidos: um 3xx já indica que o serviço respondeu,
+        // e seguir redirects poderia levar a um endereço interno.
+        this.client = HttpClient.newBuilder()
+                .connectTimeout(timeout)
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+    }
+
+    public CheckResult check(String url) {
+        Instant startedAt = Instant.now();
+        Optional<String> blocked = urlGuard.validate(url);
+        if (blocked.isPresent()) {
+            return CheckResult.failure(startedAt, null, blocked.get());
+        }
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .timeout(timeout)
+                .header("User-Agent", "Vigia/0.1")
+                .GET()
+                .build();
+        long start = System.nanoTime();
+        try {
+            HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
+            return CheckResult.success(startedAt, response.statusCode(), elapsedMs(start));
+        } catch (HttpTimeoutException e) {
+            return CheckResult.failure(startedAt, elapsedMs(start), "Tempo esgotado após " + timeout.toSeconds() + "s");
+        } catch (IOException e) {
+            String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            return CheckResult.failure(startedAt, elapsedMs(start), message);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return CheckResult.failure(startedAt, elapsedMs(start), "Verificação interrompida");
+        }
+    }
+
+    private static long elapsedMs(long startNanos) {
+        return Duration.ofNanos(System.nanoTime() - startNanos).toMillis();
+    }
+}

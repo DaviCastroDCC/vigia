@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: vigia
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/vigia}
+    username: ${DB_USER:vigia}
+    password: ${DB_PASSWORD:vigia}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+monitor:
+  jwt:
+    # Em produção, defina JWT_SECRET com pelo menos 32 caracteres aleatórios.
+    secret: ${JWT_SECRET:dev-secret-change-me-dev-secret-change-me}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:120}
+  checker:
+    # De quanto em quanto tempo o agendador procura serviços com verificação pendente.
+    tick-ms: ${CHECKER_TICK_MS:10000}
+    timeout-seconds: ${CHECKER_TIMEOUT_SECONDS:10}
+    # Bloqueia URLs que apontam para a rede interna (localhost, 10.x, 169.254.x...).
+    # Importante quando a API fica pública na AWS.
+    block-private-addresses: ${CHECKER_BLOCK_PRIVATE:true}

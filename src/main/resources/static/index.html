@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vigia</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --border: #e3e6eb; --text: #14171c; --muted: #66707d;
+    --up: #16a34a; --up-soft: #dcfce7; --down: #dc2626; --down-soft: #fee2e2;
+    --wait: #9aa3af; --wait-soft: #eef0f3; --accent: #2563eb; --line: #2563eb; --area: rgba(37,99,235,.10);
+    --shadow: 0 1px 2px rgba(16,24,40,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --surface: #151b23; --border: #2a313c; --text: #e6e9ee; --muted: #8b95a3;
+      --up: #22c55e; --up-soft: rgba(34,197,94,.14); --down: #f05252; --down-soft: rgba(240,82,82,.15);
+      --wait: #6b7480; --wait-soft: #222a34; --accent: #5b9cff; --line: #5b9cff; --area: rgba(91,156,255,.14);
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+
+  header { border-bottom: 1px solid var(--border); background: var(--surface); }
+  header .wrap { display: flex; align-items: center; gap: 12px; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 17px; margin-right: auto; }
+  .brand img { width: 26px; height: 26px; }
+  nav { display: flex; gap: 6px; }
+
+  button, .btn { font: inherit; font-size: 14px; border: 1px solid var(--border); background: var(--surface);
+                 color: var(--text); padding: 7px 13px; border-radius: 8px; cursor: pointer; }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.ghost { border-color: transparent; background: transparent; }
+  button.ghost.active { background: var(--wait-soft); }
+  button.danger:hover { color: var(--down); border-color: var(--down); }
+  button:disabled { opacity: .55; cursor: wait; }
+
+  .banner { margin: 28px 0 22px; padding: 18px 20px; border-radius: 12px; display: flex; align-items: center;
+            gap: 14px; font-size: 18px; font-weight: 600; }
+  .banner.up { background: var(--up-soft); color: var(--up); }
+  .banner.down { background: var(--down-soft); color: var(--down); }
+  .banner.wait { background: var(--wait-soft); color: var(--muted); }
+  .banner small { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; padding-bottom: 40px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
+          box-shadow: var(--shadow); min-width: 0; }
+  .card-head { display: flex; align-items: center; gap: 10px; }
+  .card-head h3 { margin: 0; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .url { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 2px 0 12px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .dot.up { background: var(--up); box-shadow: 0 0 0 4px var(--up-soft); animation: pulse 2s infinite; }
+  .dot.down { background: var(--down); box-shadow: 0 0 0 4px var(--down-soft); }
+  .dot.wait { background: var(--wait); }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 7px transparent; } }
+  .pill { margin-left: auto; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 99px; white-space: nowrap; }
+  .pill.up { background: var(--up-soft); color: var(--up); }
+  .pill.down { background: var(--down-soft); color: var(--down); }
+  .pill.wait { background: var(--wait-soft); color: var(--muted); }
+
+  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+  .metric span { display: block; font-size: 12px; color: var(--muted); }
+  .metric b { font-size: 17px; font-variant-numeric: tabular-nums; }
+
+  .ticks { display: flex; gap: 2px; height: 26px; margin-bottom: 4px; }
+  .tick { flex: 1; border-radius: 2px; background: var(--wait-soft); }
+  .tick.up { background: var(--up); }
+  .tick.down { background: var(--down); }
+  .axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+
+  .chart { margin-top: 14px; }
+  .chart-title { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .chart svg { display: block; width: 100%; height: 90px; }
+  .chart .empty { height: 90px; display: grid; place-items: center; color: var(--muted); font-size: 13px;
+                  border: 1px dashed var(--border); border-radius: 8px; }
+
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .actions button { font-size: 13px; padding: 5px 10px; }
+  .actions .switch { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin: 28px 0 0; }
+  .panel h2 { margin: 0 0 12px; font-size: 16px; }
+  form.row { display: grid; grid-template-columns: 1.2fr 2fr .8fr auto auto; gap: 8px; align-items: end; }
+  label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  input[type=text], input[type=url], input[type=email], input[type=password], input[type=number] {
+    font: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text); width: 100%; min-width: 0; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); padding-bottom: 8px; white-space: nowrap; }
+
+  .auth { max-width: 380px; margin: 60px auto; }
+  .auth form { display: flex; flex-direction: column; gap: 12px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .error { color: var(--down); font-size: 13px; min-height: 18px; }
+  .empty-state { text-align: center; color: var(--muted); padding: 50px 16px; grid-column: 1 / -1; }
+  footer { color: var(--muted); font-size: 12px; text-align: center; padding: 0 16px 30px; }
+  .hidden { display: none !important; }
+
+  @media (max-width: 760px) {
+    form.row { grid-template-columns: 1fr 1fr; }
+    form.row .wide { grid-column: 1 / -1; }
+    .grid { grid-template-columns: 1fr; }
+    .brand span { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand"><img src="/favicon.svg" alt=""><span>Vigia</span></div>
+    <nav>
+      <button class="ghost" id="nav-public">Status público</button>
+      <button class="ghost" id="nav-dash">Meu painel</button>
+      <button class="ghost hidden" id="nav-logout">Sair</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- Login / cadastro -->
+  <section id="view-auth" class="auth hidden">
+    <div class="panel">
+      <div class="tabs">
+        <button class="ghost active" data-mode="login">Entrar</button>
+        <button class="ghost" data-mode="register">Criar conta</button>
+      </div>
+      <form id="auth-form">
+        <label class="f hidden" id="name-field">Nome<input type="text" name="name" maxlength="100"></label>
+        <label class="f">E-mail<input type="email" name="email" required></label>
+        <label class="f">Senha<input type="password" name="password" required minlength="8"></label>
+        <div class="error" id="auth-error"></div>
+        <button class="primary" type="submit" id="auth-submit">Entrar</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Painel do usuário -->
+  <section id="view-dash" class="hidden">
+    <div class="panel">
+      <h2>Monitorar novo serviço</h2>
+      <form class="row" id="add-form">
+        <label class="f">Nome<input type="text" name="name" required maxlength="100" placeholder="Meu site"></label>
+        <label class="f wide">URL<input type="url" name="url" required placeholder="https://exemplo.com"></label>
+        <label class="f">Intervalo (s)<input type="number" name="intervalSeconds" value="60" min="30" max="86400" required></label>
+        <label class="check"><input type="checkbox" name="publicPage" checked> Público</label>
+        <button class="primary" type="submit">Adicionar</button>
+      </form>
+      <div class="error" id="add-error"></div>
+    </div>
+  </section>
+
+  <div id="banner" class="banner wait hidden"></div>
+  <div id="cards" class="grid"></div>
+</main>
+
+<footer>Atualiza sozinho a cada 15 segundos · Java 21 · Spring Boot · PostgreSQL</footer>
+
+<script>
+const REFRESH_MS = 15000;
+const state = { view: 'public', authMode: 'login', token: load('token') };
+let timer = null;
+
+function load(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function save(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} }
+const $ = (sel) => document.querySelector(sel);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (state.token) headers.Authorization = 'Bearer ' + state.token;
+  const res = await fetch(path, { ...opts, headers });
+  if (res.status === 401 && state.token) { logout(); throw new Error('Sessão expirada, entre novamente'); }
+  if (!res.ok) {
+    let msg = 'Erro ' + res.status;
+    try { const p = await res.json(); msg = p.errors ? Object.entries(p.errors).map(([k, v]) => k + ': ' + v).join(' · ') : (p.detail || msg); } catch {}
+    throw new Error(msg);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+/* ---------- navegação ---------- */
+function show(view) {
+  state.view = view;
+  if (view === 'dash' && !state.token) view = 'auth';
+  $('#view-auth').classList.toggle('hidden', view !== 'auth');
+  $('#view-dash').classList.toggle('hidden', view !== 'dash');
+  $('#cards').classList.toggle('hidden', view === 'auth');
+  $('#banner').classList.toggle('hidden', view === 'auth');
+  $('#nav-public').classList.toggle('active', view === 'public');
+  $('#nav-dash').classList.toggle('active', view !== 'public');
+  $('#nav-logout').classList.toggle('hidden', !state.token);
+  clearInterval(timer);
+  if (view !== 'auth') { refresh(); timer = setInterval(refresh, REFRESH_MS); }
+}
+
+function logout() { state.token = null; save('token', null); show('public'); }
+
+/* ---------- dados ---------- */
+async function refresh() {
+  const dash = state.view === 'dash';
+  try {
+    const cards = await api(dash ? '/api/services/dashboard' : '/api/public/status');
+    renderBanner(cards);
+    renderCards(cards, dash);
+  } catch (e) {
+    $('#cards').innerHTML = `<div class="empty-state">${esc(e.message)}</div>`;
+  }
+}
+
+function statusOf(c) {
+  if (!c.active) return { cls: 'wait', label: 'Pausado' };
+  if (c.lastStatus === 'UP') return { cls: 'up', label: 'Online' };
+  if (c.lastStatus === 'DOWN') return { cls: 'down', label: 'Fora do ar' };
+  return { cls: 'wait', label: 'Aguardando' };
+}
+
+function renderBanner(cards) {
+  const b = $('#banner');
+  const down = cards.filter(c => c.active && c.lastStatus === 'DOWN');
+  const checked = cards.filter(c => c.lastStatus);
+  let cls, title;
+  if (!cards.length) { cls = 'wait'; title = 'Nenhum serviço monitorado ainda'; }
+  else if (down.length) { cls = 'down'; title = down.length === 1 ? `${down[0].name} está fora do ar` : `${down.length} serviços fora do ar`; }
+  else if (!checked.length) { cls = 'wait'; title = 'Aguardando a primeira verificação'; }
+  else { cls = 'up'; title = 'Todos os sistemas operacionais'; }
+  b.className = 'banner ' + cls;
+  b.innerHTML = `<span class="dot ${cls}"></span><div>${esc(title)}<small>${cards.length} serviço(s) · atualizado ${new Date().toLocaleTimeString('pt-BR')}</small></div>`;
+}
+
+function renderCards(cards, dash) {
+  const el = $('#cards');
+  if (!cards.length) {
+    el.innerHTML = `<div class="empty-state">${dash ? 'Adicione um serviço acima para começar.' : 'Nenhum serviço público. Entre em "Meu painel" e marque algum como público.'}</div>`;
+    return;
+  }
+  el.innerHTML = cards.map(c => cardHtml(c, dash)).join('');
+}
+
+function cardHtml(c, dash) {
+  const s = statusOf(c);
+  const checks = c.recentChecks || [];
+  const ticks = Array.from({ length: 60 }, (_, i) => checks[i - (60 - checks.length)]);
+  const host = (() => { try { return new URL(c.url).host; } catch { return c.url; } })();
+  return `
+  <article class="card" data-id="${c.id}">
+    <div class="card-head"><span class="dot ${s.cls}"></span><h3 title="${esc(c.name)}">${esc(c.name)}</h3>
+      <span class="pill ${s.cls}">${s.label}</span></div>
+    <div class="url" title="${esc(c.url)}">${esc(host)}</div>
+    <div class="metrics">
+      <div class="metric"><span>Uptime 24h</span><b>${c.uptime24h == null ? '—' : fmtPct(c.uptime24h)}</b></div>
+      <div class="metric"><span>Resposta média</span><b>${c.avgResponseTimeMs24h == null ? '—' : Math.round(c.avgResponseTimeMs24h) + ' ms'}</b></div>
+      <div class="metric"><span>Última verificação</span><b>${c.lastCheckedAt ? ago(c.lastCheckedAt) : '—'}</b></div>
+    </div>
+    <div class="ticks">${ticks.map(t => t
+        ? `<div class="tick ${t.up ? 'up' : 'down'}" title="${fmtTime(t.checkedAt)} · ${t.up ? 'online' : 'fora do ar'}${t.responseTimeMs != null ? ' · ' + t.responseTimeMs + ' ms' : ''}"></div>`
+        : '<div class="tick"></div>').join('')}</div>
+    <div class="axis"><span>${checks.length ? fmtTime(checks[0].checkedAt) : ''}</span><span>últimas ${checks.length} verificações</span><span>agora</span></div>
+    <div class="chart">${chartHtml(checks)}</div>
+    ${dash ? `
+    <div class="actions">
+      <button data-act="check">Verificar agora</button>
+      <button class="danger" data-act="delete">Excluir</button>
+      <label class="switch"><input type="checkbox" data-act="public" ${c.publicPage ? 'checked' : ''}> Público</label>
+    </div>` : ''}
+  </article>`;
+}
+
+/* Gráfico de linha do tempo de resposta em SVG puro. Faixas vermelhas marcam quedas. */
+function chartHtml(checks) {
+  const pts = checks.map((c, i) => ({ i, v: c.responseTimeMs, up: c.up }));
+  const values = pts.filter(p => p.v != null).map(p => p.v);
+  if (values.length < 2) return `<div class="chart-title"><span>Tempo de resposta</span></div><div class="empty">Coletando dados…</div>`;
+  const W = 600, H = 90, pad = 4;
+  const max = Math.max(...values) * 1.15 || 1;
+  const n = Math.max(pts.length - 1, 1);
+  const x = i => (i / n) * W;
+  const y = v => H - pad - (v / max) * (H - pad * 2);
+  const line = pts.filter(p => p.v != null).map((p, k) => `${k ? 'L' : 'M'}${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
+  const first = pts.find(p => p.v != null), last = [...pts].reverse().find(p => p.v != null);
+  const area = `${line} L${x(last.i).toFixed(1)},${H} L${x(first.i).toFixed(1)},${H} Z`;
+  const bandW = W / Math.max(pts.length, 1);
+  const bands = pts.filter(p => !p.up).map(p => `<rect x="${(x(p.i) - bandW / 2).toFixed(1)}" y="0" width="${bandW.toFixed(1)}" height="${H}" fill="var(--down)" opacity=".18"/>`).join('');
+  return `<div class="chart-title"><span>Tempo de resposta</span><span>máx ${Math.max(...values)} ms</span></div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Gráfico do tempo de resposta">
+      ${bands}
+      <path d="${area}" fill="var(--area)"/>
+      <path d="${line}" fill="none" stroke="var(--line)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+    </svg>`;
+}
+
+const fmtPct = v => (v >= 99.995 ? '100' : v.toFixed(2).replace('.', ',')) + '%';
+const fmtTime = iso => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+function ago(iso) {
+  const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000));
+  if (s < 60) return `há ${s}s`;
+  if (s < 3600) return `há ${Math.round(s / 60)} min`;
+  return `há ${Math.round(s / 3600)} h`;
+}
+
+/* ---------- eventos ---------- */
+$('#nav-public').onclick = () => show('public');
+$('#nav-dash').onclick = () => show('dash');
+$('#nav-logout').onclick = logout;
+
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  state.authMode = b.dataset.mode;
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('active', x === b));
+  $('#name-field').classList.toggle('hidden', state.authMode !== 'register');
+  $('#name-field input').required = state.authMode === 'register';
+  $('#auth-submit').textContent = state.authMode === 'register' ? 'Criar conta' : 'Entrar';
+  $('#auth-error').textContent = '';
+});
+
+$('#auth-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const body = { email: f.get('email'), password: f.get('password') };
+  if (state.authMode === 'register') body.name = f.get('name');
+  try {
+    const r = await api('/api/auth/' + state.authMode, { method: 'POST', body: JSON.stringify(body) });
+    state.token = r.token; save('token', r.token);
+    e.target.reset();
+    show('dash');
+  } catch (err) { $('#auth-error').textContent = err.message; }
+};
+
+$('#add-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const body = { name: f.get('name'), url: f.get('url'), intervalSeconds: Number(f.get('intervalSeconds')), publicPage: f.get('publicPage') === 'on' };
+  const btn = e.target.querySelector('button'); btn.disabled = true;
+  $('#add-error').textContent = '';
+  try {
+    const created = await api('/api/services', { method: 'POST', body: JSON.stringify(body) });
+    e.target.reset();
+    await api(`/api/services/${created.id}/check`, { method: 'POST' }).catch(() => {});
+    await refresh();
+  } catch (err) { $('#add-error').textContent = err.message; }
+  finally { btn.disabled = false; }
+};
+
+$('#cards').addEventListener('click', async (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el || el.dataset.act === 'public') return;
+  const id = el.closest('.card').dataset.id;
+  if (el.dataset.act === 'delete' && !confirm('Excluir este serviço e todo o histórico?')) return;
+  el.disabled = true;
+  try {
+    if (el.dataset.act === 'check') await api(`/api/services/${id}/check`, { method: 'POST' });
+    if (el.dataset.act === 'delete') await api(`/api/services/${id}`, { method: 'DELETE' });
+    await refresh();
+  } catch (err) { alert(err.message); el.disabled = false; }
+});
+
+$('#cards').addEventListener('change', async (e) => {
+  if (e.target.dataset.act !== 'public') return;
+  const id = e.target.closest('.card').dataset.id;
+  try {
+    const s = await api(`/api/services/${id}`);
+    await api(`/api/services/${id}`, { method: 'PUT', body: JSON.stringify({ ...s, publicPage: e.target.checked }) });
+  } catch (err) { alert(err.message); e.target.checked = !e.target.checked; }
+});
+
+show(state.token ? 'dash' : 'public');
+</script>
+</body>
+</html>

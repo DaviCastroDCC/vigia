@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:monitor;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+
+monitor:
+  checker:
+    enabled: false
+    block-private-addresses: false
+    timeout-seconds: 3

@@ -1,0 +1,34 @@
+name: vigia
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: vigia
+      POSTGRES_USER: ${DB_USER:-vigia}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-vigia}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-vigia} -d vigia"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/vigia
+      DB_USER: ${DB_USER:-vigia}
+      DB_PASSWORD: ${DB_PASSWORD:-vigia}
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no arquivo .env}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
