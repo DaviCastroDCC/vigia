@@ -8,8 +8,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "monitor")
 public record MonitorProperties(Jwt jwt, Checker checker, Alerts alerts, String showcaseOwnerEmail, Limits limits) {
 
-    /** @param maxServicesPerUser serviços por conta (0 = sem limite). O dono da vitrine não tem limite. */
-    public record Limits(int maxServicesPerUser) {
+    /**
+     * @param maxServicesPerUser    serviços por conta (0 = sem limite). O dono da vitrine não tem limite.
+     * @param authRequestsPerMinute tentativas de login/cadastro por IP por minuto (0 = sem limite)
+     */
+    public record Limits(int maxServicesPerUser, int authRequestsPerMinute) {
     }
 
     public record Jwt(String secret, long expirationMinutes) {

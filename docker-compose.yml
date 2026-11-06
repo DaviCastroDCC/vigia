@@ -31,6 +31,7 @@ services:
       # Conta cujos serviços públicos formam a vitrine vista por todos
       SHOWCASE_OWNER_EMAIL: ${SHOWCASE_OWNER_EMAIL:-}
       MAX_SERVICES_PER_USER: ${MAX_SERVICES_PER_USER:-5}
+      AUTH_REQUESTS_PER_MINUTE: ${AUTH_REQUESTS_PER_MINUTE:-10}
     ports:
       - "8080:8080"
     restart: unless-stopped

@@ -10,3 +10,6 @@ monitor:
     block-private-addresses: false
     timeout-seconds: 3
   showcase-owner-email: vitrine@teste.com
+  limits:
+    # os testes criam muitas contas seguidas do mesmo IP; o limite tem teste próprio
+    auth-requests-per-minute: 0

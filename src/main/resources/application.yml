@@ -30,6 +30,8 @@ monitor:
   limits:
     # Quantos serviços cada conta pode monitorar (0 = sem limite). O dono da vitrine não tem limite.
     max-services-per-user: ${MAX_SERVICES_PER_USER:5}
+    # Tentativas de login/cadastro por IP por minuto, contra força bruta (0 = sem limite).
+    auth-requests-per-minute: ${AUTH_REQUESTS_PER_MINUTE:10}
   jwt:
     # Em produção, defina JWT_SECRET com pelo menos 32 caracteres aleatórios.
     secret: ${JWT_SECRET:dev-secret-change-me-dev-secret-change-me}
