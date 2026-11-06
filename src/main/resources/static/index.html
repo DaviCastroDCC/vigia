@@ -9,6 +9,7 @@
   :root {
     --bg: #f6f7f9; --surface: #ffffff; --border: #e3e6eb; --text: #14171c; --muted: #66707d;
     --up: #16a34a; --up-soft: #dcfce7; --down: #dc2626; --down-soft: #fee2e2;
+    --slow: #ca8a04; --slow-soft: #fef3c7;
     --wait: #9aa3af; --wait-soft: #eef0f3; --accent: #2563eb; --line: #2563eb; --area: rgba(37,99,235,.10);
     --shadow: 0 1px 2px rgba(16,24,40,.05);
   }
@@ -16,6 +17,7 @@
     :root {
       --bg: #0d1117; --surface: #151b23; --border: #2a313c; --text: #e6e9ee; --muted: #8b95a3;
       --up: #22c55e; --up-soft: rgba(34,197,94,.14); --down: #f05252; --down-soft: rgba(240,82,82,.15);
+      --slow: #eab308; --slow-soft: rgba(234,179,8,.15);
       --wait: #6b7480; --wait-soft: #222a34; --accent: #5b9cff; --line: #5b9cff; --area: rgba(91,156,255,.14);
       --shadow: none;
     }
@@ -44,6 +46,7 @@
             gap: 14px; font-size: 18px; font-weight: 600; }
   .banner.up { background: var(--up-soft); color: var(--up); }
   .banner.down { background: var(--down-soft); color: var(--down); }
+  .banner.slow { background: var(--slow-soft); color: var(--slow); }
   .banner.wait { background: var(--wait-soft); color: var(--muted); }
   .banner small { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
 
@@ -56,11 +59,13 @@
   .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
   .dot.up { background: var(--up); box-shadow: 0 0 0 4px var(--up-soft); animation: pulse 2s infinite; }
   .dot.down { background: var(--down); box-shadow: 0 0 0 4px var(--down-soft); }
+  .dot.slow { background: var(--slow); box-shadow: 0 0 0 4px var(--slow-soft); }
   .dot.wait { background: var(--wait); }
   @keyframes pulse { 50% { box-shadow: 0 0 0 7px transparent; } }
   .pill { margin-left: auto; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 99px; white-space: nowrap; }
   .pill.up { background: var(--up-soft); color: var(--up); }
   .pill.down { background: var(--down-soft); color: var(--down); }
+  .pill.slow { background: var(--slow-soft); color: var(--slow); }
   .pill.wait { background: var(--wait-soft); color: var(--muted); }
 
   .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
@@ -71,7 +76,23 @@
   .tick { flex: 1; border-radius: 2px; background: var(--wait-soft); }
   .tick.up { background: var(--up); }
   .tick.down { background: var(--down); }
+  .tick.slow { background: var(--slow); }
   .axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+
+  .days-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin: 14px 0 4px; }
+  .days-head b { color: var(--text); font-weight: 600; }
+  .days { display: flex; gap: 1px; height: 22px; margin-bottom: 4px; }
+  .day { flex: 1; border-radius: 1px; background: var(--wait-soft); }
+  .day.up { background: var(--up); }
+  .day.slow { background: var(--slow); }
+  .day.down { background: var(--down); }
+  .day:hover { opacity: .7; }
+
+  .sub { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0 12px; font-size: 13px; color: var(--muted); }
+  .sub .url { margin: 0; }
+  .ssl { white-space: nowrap; }
+  .ssl.warn { color: var(--slow); font-weight: 600; }
+  .ssl.bad { color: var(--down); font-weight: 600; }
 
   .chart { margin-top: 14px; }
   .chart-title { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
@@ -85,7 +106,7 @@
 
   .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin: 28px 0 0; }
   .panel h2 { margin: 0 0 12px; font-size: 16px; }
-  form.row { display: grid; grid-template-columns: 1.2fr 2fr .8fr auto auto; gap: 8px; align-items: end; }
+  form.row { display: grid; grid-template-columns: 1.2fr 2fr .8fr .9fr auto auto; gap: 8px; align-items: end; }
   label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   input[type=text], input[type=url], input[type=email], input[type=password], input[type=number] {
     font: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
@@ -147,6 +168,7 @@
         <label class="f">Nome<input type="text" name="name" required maxlength="100" placeholder="Meu site"></label>
         <label class="f wide">URL<input type="url" name="url" required placeholder="https://exemplo.com"></label>
         <label class="f">Intervalo (s)<input type="number" name="intervalSeconds" value="60" min="30" max="86400" required></label>
+        <label class="f">Lento acima de (ms)<input type="number" name="slowThresholdMs" value="1000" min="100" max="60000" required></label>
         <label class="check"><input type="checkbox" name="publicPage" checked> Público</label>
         <button class="primary" type="submit">Adicionar</button>
       </form>
@@ -215,6 +237,7 @@ async function refresh() {
 function statusOf(c) {
   if (!c.active) return { cls: 'wait', label: 'Pausado' };
   if (c.lastStatus === 'UP') return { cls: 'up', label: 'Online' };
+  if (c.lastStatus === 'DEGRADED') return { cls: 'slow', label: 'Lento' };
   if (c.lastStatus === 'DOWN') return { cls: 'down', label: 'Fora do ar' };
   return { cls: 'wait', label: 'Aguardando' };
 }
@@ -222,10 +245,12 @@ function statusOf(c) {
 function renderBanner(cards) {
   const b = $('#banner');
   const down = cards.filter(c => c.active && c.lastStatus === 'DOWN');
+  const slow = cards.filter(c => c.active && c.lastStatus === 'DEGRADED');
   const checked = cards.filter(c => c.lastStatus);
   let cls, title;
   if (!cards.length) { cls = 'wait'; title = 'Nenhum serviço monitorado ainda'; }
   else if (down.length) { cls = 'down'; title = down.length === 1 ? `${down[0].name} está fora do ar` : `${down.length} serviços fora do ar`; }
+  else if (slow.length) { cls = 'slow'; title = slow.length === 1 ? `${slow[0].name} está lento` : `${slow.length} serviços lentos`; }
   else if (!checked.length) { cls = 'wait'; title = 'Aguardando a primeira verificação'; }
   else { cls = 'up'; title = 'Todos os sistemas operacionais'; }
   b.className = 'banner ' + cls;
@@ -250,24 +275,52 @@ function cardHtml(c, dash) {
   <article class="card" data-id="${c.id}">
     <div class="card-head"><span class="dot ${s.cls}"></span><h3 title="${esc(c.name)}">${esc(c.name)}</h3>
       <span class="pill ${s.cls}">${s.label}</span></div>
-    <div class="url" title="${esc(c.url)}">${esc(host)}</div>
+    <div class="sub"><div class="url" title="${esc(c.url)}">${esc(host)}</div>${sslHtml(c.certExpiresAt)}</div>
     <div class="metrics">
       <div class="metric"><span>Uptime 24h</span><b>${c.uptime24h == null ? '—' : fmtPct(c.uptime24h)}</b></div>
       <div class="metric"><span>Resposta média</span><b>${c.avgResponseTimeMs24h == null ? '—' : Math.round(c.avgResponseTimeMs24h) + ' ms'}</b></div>
       <div class="metric"><span>Última verificação</span><b>${c.lastCheckedAt ? ago(c.lastCheckedAt) : '—'}</b></div>
     </div>
     <div class="ticks">${ticks.map(t => t
-        ? `<div class="tick ${t.up ? 'up' : 'down'}" title="${fmtTime(t.checkedAt)} · ${t.up ? 'online' : 'fora do ar'}${t.responseTimeMs != null ? ' · ' + t.responseTimeMs + ' ms' : ''}"></div>`
+        ? `<div class="tick ${!t.up ? 'down' : t.slow ? 'slow' : 'up'}" title="${fmtTime(t.checkedAt)} · ${!t.up ? 'fora do ar' : t.slow ? 'lento' : 'online'}${t.responseTimeMs != null ? ' · ' + t.responseTimeMs + ' ms' : ''}"></div>`
         : '<div class="tick"></div>').join('')}</div>
     <div class="axis"><span>${checks.length ? fmtTime(checks[0].checkedAt) : ''}</span><span>últimas ${checks.length} verificações</span><span>agora</span></div>
     <div class="chart">${chartHtml(checks)}</div>
+    ${daysHtml(c)}
     ${dash ? `
     <div class="actions">
       <button data-act="check">Verificar agora</button>
+      ${c.publicPage ? '<button data-act="badge" title="Copia o Markdown do badge de uptime">Copiar badge</button>' : ''}
       <button class="danger" data-act="delete">Excluir</button>
       <label class="switch"><input type="checkbox" data-act="public" ${c.publicPage ? 'checked' : ''}> Público</label>
     </div>` : ''}
   </article>`;
+}
+
+/* Barra de 90 dias: um traço por dia (UTC). Verde = 100% no ar, amarelo = quedas curtas, vermelho = abaixo de 99%. */
+function daysHtml(c) {
+  const byDay = new Map((c.daily || []).map(d => [d.day, d]));
+  const today = Date.now();
+  const days = Array.from({ length: 90 }, (_, i) => new Date(today - (89 - i) * 864e5).toISOString().slice(0, 10));
+  const bars = days.map(key => {
+    const d = byDay.get(key);
+    const label = new Date(key + 'T12:00:00Z').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+    if (!d) return `<div class="day" title="${label} · sem dados"></div>`;
+    const pct = d.up * 100 / d.total;
+    const cls = d.up === d.total ? 'up' : pct >= 99 ? 'slow' : 'down';
+    return `<div class="day ${cls}" title="${label} · ${fmtPct(pct)} no ar · ${d.total} verificações"></div>`;
+  }).join('');
+  return `<div class="days-head"><span>Últimos 90 dias</span><span>uptime <b>${c.uptime90d == null ? '—' : fmtPct(c.uptime90d)}</b></span></div>
+    <div class="days">${bars}</div>
+    <div class="axis"><span>90 dias atrás</span><span>hoje</span></div>`;
+}
+
+function sslHtml(iso) {
+  if (!iso) return '';
+  const days = Math.floor((new Date(iso) - Date.now()) / 864e5);
+  const cls = days < 0 ? 'bad' : days < 14 ? 'warn' : '';
+  const text = days < 0 ? 'SSL expirado' : `SSL vence em ${days} ${days === 1 ? 'dia' : 'dias'}`;
+  return `<span class="ssl ${cls}" title="Certificado válido até ${new Date(iso).toLocaleDateString('pt-BR')}">${text}</span>`;
 }
 
 /* Gráfico de linha do tempo de resposta em SVG puro. Faixas vermelhas marcam quedas. */
@@ -332,7 +385,8 @@ $('#auth-form').onsubmit = async (e) => {
 $('#add-form').onsubmit = async (e) => {
   e.preventDefault();
   const f = new FormData(e.target);
-  const body = { name: f.get('name'), url: f.get('url'), intervalSeconds: Number(f.get('intervalSeconds')), publicPage: f.get('publicPage') === 'on' };
+  const body = { name: f.get('name'), url: f.get('url'), intervalSeconds: Number(f.get('intervalSeconds')),
+                 slowThresholdMs: Number(f.get('slowThresholdMs')), publicPage: f.get('publicPage') === 'on' };
   const btn = e.target.querySelector('button'); btn.disabled = true;
   $('#add-error').textContent = '';
   try {
@@ -348,6 +402,12 @@ $('#cards').addEventListener('click', async (e) => {
   const el = e.target.closest('[data-act]');
   if (!el || el.dataset.act === 'public') return;
   const id = el.closest('.card').dataset.id;
+  if (el.dataset.act === 'badge') {
+    const md = `![uptime](${location.origin}/api/public/services/${id}/badge.svg)`;
+    try { await navigator.clipboard.writeText(md); el.textContent = 'Copiado!'; }
+    catch { prompt('Copie o Markdown do badge:', md); }
+    return;
+  }
   if (el.dataset.act === 'delete' && !confirm('Excluir este serviço e todo o histórico?')) return;
   el.disabled = true;
   try {

@@ -22,7 +22,7 @@ public class CheckRecorder {
     public Optional<HealthCheck> record(Long serviceId, CheckResult result) {
         // O serviço pode ter sido apagado enquanto a requisição HTTP estava em andamento.
         return services.findById(serviceId).map(service -> {
-            service.registerCheck(result.up(), result.checkedAt());
+            service.registerCheck(result.up(), result.responseTimeMs(), result.checkedAt(), result.certExpiresAt());
             return checks.save(new HealthCheck(service, result));
         });
     }

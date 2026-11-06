@@ -14,9 +14,12 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.net.InetSocketAddress;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -45,6 +48,15 @@ class MonitorApiTest {
         });
         fakeSite.createContext("/broken", ex -> {
             ex.sendResponseHeaders(503, -1);
+            ex.close();
+        });
+        fakeSite.createContext("/slow", ex -> {
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            ex.sendResponseHeaders(200, -1);
             ex.close();
         });
         fakeSite.start();
@@ -139,6 +151,58 @@ class MonitorApiTest {
         mvc.perform(get("/")).andExpect(status().isOk());
     }
 
+    @Test
+    void slowResponseIsDegraded_butStillCountsAsUp() throws Exception {
+        String token = registerAndGetToken();
+        long id = createService(token, Map.of("name", "Lento", "url", "http://127.0.0.1:" + fakePort + "/slow",
+                "intervalSeconds", 60, "publicPage", true, "slowThresholdMs", 100));
+
+        mvc.perform(post("/api/services/" + id + "/check").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.up").value(true));
+
+        mvc.perform(get("/api/public/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].lastStatus").value("DEGRADED"))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].slowThresholdMs").value(100))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].uptime24h").value(100.0))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].recentChecks[0].slow").value(true))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].daily[0].total").value(1))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].daily[0].up").value(1))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].uptime90d").value(100.0));
+    }
+
+    @Test
+    void rejectsInvalidSlowThreshold() throws Exception {
+        String token = registerAndGetToken();
+        mvc.perform(post("/api/services").header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("name", "X", "url", "https://example.com",
+                                "intervalSeconds", 60, "slowThresholdMs", 5))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.slowThresholdMs").exists());
+    }
+
+    @Test
+    void badgeIsServedForPublicServices_only() throws Exception {
+        String token = registerAndGetToken();
+        String okUrl = "http://127.0.0.1:" + fakePort + "/ok";
+        long publicId = createService(token, "Publico", okUrl, true);
+        long privateId = createService(token, "Privado", okUrl, false);
+        mvc.perform(post("/api/services/" + publicId + "/check").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        String svg = mvc.perform(get("/api/public/services/" + publicId + "/badge.svg"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("image/svg+xml"))
+                .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("max-age=300")))
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(svg).startsWith("<svg").contains("uptime 30d").contains("100%");
+
+        mvc.perform(get("/api/public/services/" + privateId + "/badge.svg"))
+                .andExpect(status().isNotFound());
+    }
+
     private String registerAndGetToken() throws Exception {
         String email = "user-" + UUID.randomUUID() + "@teste.com";
         String body = mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
@@ -159,10 +223,13 @@ class MonitorApiTest {
     }
 
     private long createService(String token, String name, String url, boolean publicPage) throws Exception {
+        return createService(token, Map.of("name", name, "url", url, "intervalSeconds", 60, "publicPage", publicPage));
+    }
+
+    private long createService(String token, Map<String, Object> request) throws Exception {
         String body = mvc.perform(post("/api/services").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json.writeValueAsString(java.util.Map.of(
-                                "name", name, "url", url, "intervalSeconds", 60, "publicPage", publicPage))))
+                        .content(json.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         JsonNode node = json.readTree(body);

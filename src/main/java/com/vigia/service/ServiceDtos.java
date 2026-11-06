@@ -9,9 +9,12 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 public final class ServiceDtos {
+
+    public static final int DEFAULT_SLOW_THRESHOLD_MS = 1000;
 
     private ServiceDtos() {
     }
@@ -22,7 +25,8 @@ public final class ServiceDtos {
             @Pattern(regexp = "^https?://\\S+$", message = "deve começar com http:// ou https://") String url,
             @NotNull @Min(30) @Max(86400) Integer intervalSeconds,
             Boolean active,
-            Boolean publicPage) {
+            Boolean publicPage,
+            @Min(100) @Max(60000) Integer slowThresholdMs) {
 
         public boolean activeOrDefault() {
             return active == null || active;
@@ -30,6 +34,10 @@ public final class ServiceDtos {
 
         public boolean publicPageOrDefault() {
             return publicPage != null && publicPage;
+        }
+
+        public int slowThresholdOrDefault() {
+            return slowThresholdMs == null ? DEFAULT_SLOW_THRESHOLD_MS : slowThresholdMs;
         }
     }
 
@@ -40,22 +48,30 @@ public final class ServiceDtos {
             int intervalSeconds,
             boolean active,
             boolean publicPage,
+            int slowThresholdMs,
             ServiceStatus lastStatus,
             Instant lastCheckedAt,
+            Instant certExpiresAt,
             Instant createdAt) {
 
         public static ServiceResponse from(MonitoredService s) {
             return new ServiceResponse(s.getId(), s.getName(), s.getUrl(), s.getIntervalSeconds(), s.isActive(),
-                    s.isPublicPage(), s.getLastStatus(), s.getLastCheckedAt(), s.getCreatedAt());
+                    s.isPublicPage(), s.getSlowThresholdMs(), s.getLastStatus(), s.getLastCheckedAt(),
+                    s.getCertExpiresAt(), s.getCreatedAt());
         }
     }
 
-    /** Ponto do gráfico: um por verificação. */
-    public record CheckPoint(Instant checkedAt, boolean up, Long responseTimeMs) {
+    /** Ponto do gráfico: um por verificação. {@code slow} = respondeu, mas acima do limite. */
+    public record CheckPoint(Instant checkedAt, boolean up, boolean slow, Long responseTimeMs) {
 
-        public static CheckPoint from(HealthCheck c) {
-            return new CheckPoint(c.getCheckedAt(), c.isUp(), c.getResponseTimeMs());
+        public static CheckPoint from(HealthCheck c, MonitoredService s) {
+            return new CheckPoint(c.getCheckedAt(), c.isUp(), s.isSlow(c.isUp(), c.getResponseTimeMs()),
+                    c.getResponseTimeMs());
         }
+    }
+
+    /** Resumo de um dia (UTC) para a barra de 90 dias. Dias sem verificação não aparecem. */
+    public record DailyStat(LocalDate day, long total, long up) {
     }
 
     /** Tudo que um card da página de status precisa, numa chamada só. */
@@ -66,10 +82,14 @@ public final class ServiceDtos {
             boolean active,
             boolean publicPage,
             int intervalSeconds,
+            int slowThresholdMs,
             ServiceStatus lastStatus,
             Instant lastCheckedAt,
+            Instant certExpiresAt,
             Double uptime24h,
             Double avgResponseTimeMs24h,
+            Double uptime90d,
+            List<DailyStat> daily,
             List<CheckPoint> recentChecks) {
     }
 

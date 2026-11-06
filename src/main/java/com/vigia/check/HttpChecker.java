@@ -9,6 +9,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import javax.net.ssl.SSLPeerUnverifiedException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -47,7 +50,7 @@ public class HttpChecker {
         long start = System.nanoTime();
         try {
             HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
-            return CheckResult.success(startedAt, response.statusCode(), elapsedMs(start));
+            return CheckResult.success(startedAt, response.statusCode(), elapsedMs(start), certExpiry(response));
         } catch (HttpTimeoutException e) {
             return CheckResult.failure(startedAt, elapsedMs(start), "Tempo esgotado após " + timeout.toSeconds() + "s");
         } catch (IOException e) {
@@ -57,6 +60,19 @@ public class HttpChecker {
             Thread.currentThread().interrupt();
             return CheckResult.failure(startedAt, elapsedMs(start), "Verificação interrompida");
         }
+    }
+
+    /** Validade do certificado do servidor, lida da própria conexão TLS (sem requisição extra). */
+    static Instant certExpiry(HttpResponse<?> response) {
+        return response.sslSession().map(session -> {
+            try {
+                Certificate[] chain = session.getPeerCertificates();
+                return chain.length > 0 && chain[0] instanceof X509Certificate x509
+                        ? x509.getNotAfter().toInstant() : null;
+            } catch (SSLPeerUnverifiedException e) {
+                return null;
+            }
+        }).orElse(null);
     }
 
     private static long elapsedMs(long startNanos) {

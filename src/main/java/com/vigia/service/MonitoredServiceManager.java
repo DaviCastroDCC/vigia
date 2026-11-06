@@ -8,6 +8,7 @@ import com.vigia.check.UrlGuard;
 import com.vigia.common.ApiException;
 import com.vigia.service.ServiceDtos.CheckPoint;
 import com.vigia.service.ServiceDtos.CheckResponse;
+import com.vigia.service.ServiceDtos.DailyStat;
 import com.vigia.service.ServiceDtos.StatusCard;
 import com.vigia.service.ServiceDtos.ServiceRequest;
 import com.vigia.service.ServiceDtos.ServiceResponse;
@@ -32,14 +33,17 @@ public class MonitoredServiceManager {
     private final UserRepository users;
     private final UrlGuard urlGuard;
     private final CheckRunner checkRunner;
+    private final DailyStatsCache dailyStats;
 
     public MonitoredServiceManager(MonitoredServiceRepository services, HealthCheckRepository checks,
-                                   UserRepository users, UrlGuard urlGuard, CheckRunner checkRunner) {
+                                   UserRepository users, UrlGuard urlGuard, CheckRunner checkRunner,
+                                   DailyStatsCache dailyStats) {
         this.services = services;
         this.checks = checks;
         this.users = users;
         this.urlGuard = urlGuard;
         this.checkRunner = checkRunner;
+        this.dailyStats = dailyStats;
     }
 
     @Transactional(readOnly = true)
@@ -56,7 +60,7 @@ public class MonitoredServiceManager {
     public ServiceResponse create(Long ownerId, ServiceRequest req) {
         String url = validatedUrl(req.url());
         var service = new MonitoredService(users.getReferenceById(ownerId), req.name().trim(), url,
-                req.intervalSeconds(), req.activeOrDefault(), req.publicPageOrDefault());
+                req.intervalSeconds(), req.activeOrDefault(), req.publicPageOrDefault(), req.slowThresholdOrDefault());
         return ServiceResponse.from(services.save(service));
     }
 
@@ -64,13 +68,14 @@ public class MonitoredServiceManager {
     public ServiceResponse update(Long ownerId, Long id, ServiceRequest req) {
         MonitoredService service = find(ownerId, id);
         service.update(req.name().trim(), validatedUrl(req.url()), req.intervalSeconds(), req.activeOrDefault(),
-                req.publicPageOrDefault());
+                req.publicPageOrDefault(), req.slowThresholdOrDefault());
         return ServiceResponse.from(service);
     }
 
     @Transactional
     public void delete(Long ownerId, Long id) {
         services.delete(find(ownerId, id));
+        dailyStats.evict(id);
     }
 
     @Transactional(readOnly = true)
@@ -110,12 +115,28 @@ public class MonitoredServiceManager {
 
     private StatusCard toCard(MonitoredService s) {
         UptimeResponse uptime = uptimeOf(s.getId(), 24);
-        List<CheckPoint> recent = new ArrayList<>(
-                checks.findTop60ByServiceIdOrderByCheckedAtDesc(s.getId()).stream().map(CheckPoint::from).toList());
+        List<CheckPoint> recent = new ArrayList<>(checks.findTop60ByServiceIdOrderByCheckedAtDesc(s.getId()).stream()
+                .map(c -> CheckPoint.from(c, s)).toList());
         Collections.reverse(recent); // do mais antigo ao mais recente, para o gráfico
+        List<DailyStat> daily = dailyStats.get(s.getId());
         return new StatusCard(s.getId(), s.getName(), s.getUrl(), s.isActive(), s.isPublicPage(),
-                s.getIntervalSeconds(), s.getLastStatus(), s.getLastCheckedAt(),
-                uptime.uptimePercent(), uptime.avgResponseTimeMs(), recent);
+                s.getIntervalSeconds(), s.getSlowThresholdMs(), s.getLastStatus(), s.getLastCheckedAt(),
+                s.getCertExpiresAt(), uptime.uptimePercent(), uptime.avgResponseTimeMs(), percentOf(daily), daily,
+                recent);
+    }
+
+    private static Double percentOf(List<DailyStat> days) {
+        long total = days.stream().mapToLong(DailyStat::total).sum();
+        long up = days.stream().mapToLong(DailyStat::up).sum();
+        return total == 0 ? null : Math.round(up * 10000.0 / total) / 100.0;
+    }
+
+    /** Uptime de um serviço público, para o badge. Serviços privados respondem 404. */
+    @Transactional(readOnly = true)
+    public UptimeResponse publicUptime(Long id, int days) {
+        services.findById(id).filter(MonitoredService::isPublicPage)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Serviço não encontrado"));
+        return uptimeOf(id, Math.clamp(days, 1, 90) * 24);
     }
 
     /** Executa uma verificação imediata, sem esperar o agendador. */

@@ -52,22 +52,38 @@ public class MonitoredService {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "slow_threshold_ms", nullable = false)
+    private int slowThresholdMs;
+
+    @Column(name = "cert_expires_at")
+    private Instant certExpiresAt;
+
     protected MonitoredService() {
     }
 
     public MonitoredService(User owner, String name, String url, int intervalSeconds, boolean active,
-                            boolean publicPage) {
+                            boolean publicPage, int slowThresholdMs) {
         this.owner = owner;
         this.createdAt = Instant.now();
-        update(name, url, intervalSeconds, active, publicPage);
+        update(name, url, intervalSeconds, active, publicPage, slowThresholdMs);
     }
 
-    public void update(String name, String url, int intervalSeconds, boolean active, boolean publicPage) {
+    public void update(String name, String url, int intervalSeconds, boolean active, boolean publicPage,
+                       int slowThresholdMs) {
+        if (!url.equals(this.url)) {
+            this.certExpiresAt = null; // o certificado salvo era de outra URL
+        }
         this.name = name;
         this.url = url;
         this.intervalSeconds = intervalSeconds;
         this.active = active;
         this.publicPage = publicPage;
+        this.slowThresholdMs = slowThresholdMs;
+    }
+
+    /** Uma verificação que respondeu, mas acima do limite configurado. */
+    public boolean isSlow(boolean up, Long responseTimeMs) {
+        return up && responseTimeMs != null && responseTimeMs > slowThresholdMs;
     }
 
     public boolean isPublicPage() {
@@ -79,9 +95,24 @@ public class MonitoredService {
         return active && (lastCheckedAt == null || !lastCheckedAt.plusSeconds(intervalSeconds).isAfter(now));
     }
 
-    public void registerCheck(boolean up, Instant checkedAt) {
-        this.lastStatus = up ? ServiceStatus.UP : ServiceStatus.DOWN;
+    public void registerCheck(boolean up, Long responseTimeMs, Instant checkedAt, Instant certExpiresAt) {
+        if (!up) {
+            this.lastStatus = ServiceStatus.DOWN;
+        } else {
+            this.lastStatus = isSlow(true, responseTimeMs) ? ServiceStatus.DEGRADED : ServiceStatus.UP;
+        }
         this.lastCheckedAt = checkedAt;
+        if (certExpiresAt != null) {
+            this.certExpiresAt = certExpiresAt;
+        }
+    }
+
+    public int getSlowThresholdMs() {
+        return slowThresholdMs;
+    }
+
+    public Instant getCertExpiresAt() {
+        return certExpiresAt;
     }
 
     public Long getId() {
