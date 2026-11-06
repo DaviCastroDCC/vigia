@@ -216,6 +216,8 @@ flowchart LR
 
 O servidor não recebe conexões do GitHub: ele **busca** a `main`, consulta na API pública do GitHub se o CI passou naquele commit e só então publica. Se a versão nova não responder no health check em 3 minutos, volta sozinho para a anterior. Os arquivos estão em [`deploy/`](deploy/).
 
+Em produção, um `git push` aprovado no CI chega ao ar sozinho, sem nenhum comando manual.
+
 Instalação no servidor (uma vez):
 
 ```bash
