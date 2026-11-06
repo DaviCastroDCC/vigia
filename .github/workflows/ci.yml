@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testes:
+    name: Testes e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Testes (unitários e de integração)
+        run: mvn -B -ntp verify
+
+      - name: Build da imagem Docker
+        run: docker build -t vigia:ci .
+
+      - name: Relatório dos testes
+        if: always()
+        run: |
+          {
+            echo "### Testes"
+            echo
+            echo "| Classe | Testes | Falhas | Erros |"
+            echo "|---|---|---|---|"
+            for f in target/surefire-reports/TEST-*.xml; do
+              name=$(grep -o 'testsuite name="[^"]*"' "$f" | head -1 | sed 's/.*name="com\.vigia\.//;s/"$//')
+              tests=$(grep -o 'tests="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+              fails=$(grep -o 'failures="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+              errors=$(grep -o 'errors="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+              echo "| $name | $tests | $fails | $errors |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
