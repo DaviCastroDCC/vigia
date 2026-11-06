@@ -209,7 +209,7 @@ flowchart LR
     timer[Servidor · a cada 2 min] -->|git fetch| new{commit novo?}
     new -->|sim| check{CI passou?}
     check -->|sim| up[sobe a versão nova]
-    up --> health{/actuator/health<br/>responde?}
+    up --> health{health check<br/>responde?}
     health -->|sim| done([no ar])
     health -->|não| rollback[volta para a versão anterior]
 ```
