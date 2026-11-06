@@ -48,7 +48,7 @@ public class HttpChecker {
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(timeout)
-                .header("User-Agent", "Vigia/1.1")
+                .header("User-Agent", "Vigia/2.0")
                 .GET()
                 .build();
         long start = System.nanoTime();

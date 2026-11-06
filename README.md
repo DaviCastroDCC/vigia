@@ -247,7 +247,7 @@ src/main/java/com/vigia
 |---|---|
 | [v1.0.0](../../releases/tag/v1.0.0) | Cadastro e login com JWT, agendador com virtual threads, histórico e uptime, página de status, proteção contra SSRF, Docker e deploy na AWS com HTTPS |
 | [v1.1.0](../../releases/tag/v1.1.0) | Estado "lento", barra de 90 dias, validade do certificado SSL e badge de uptime |
-| v2.0.0 | Incidentes e alertas no Telegram, vitrine e limites para cadastro aberto, aquecimento pós-deploy, CI e deploy contínuo com rollback |
+| [v2.0.0](../../releases/tag/v2.0.0) | Incidentes e alertas no Telegram, vitrine e limites para cadastro aberto, aquecimento pós-deploy, CI e deploy contínuo com rollback |
 
 ## Próximos passos
 
