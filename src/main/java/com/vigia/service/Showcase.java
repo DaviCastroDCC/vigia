@@ -20,9 +20,24 @@ public class Showcase {
     private final UserRepository users;
     private final String ownerEmail;
 
+    private final int maxServicesPerUser;
+
     public Showcase(UserRepository users, MonitorProperties properties) {
         this.users = users;
         this.ownerEmail = properties.showcaseOwnerEmail() == null ? "" : properties.showcaseOwnerEmail().trim();
+        this.maxServicesPerUser = properties.limits() == null ? 0 : properties.limits().maxServicesPerUser();
+    }
+
+    public boolean isOwner(Long userId) {
+        return ownerId().filter(userId::equals).isPresent();
+    }
+
+    /**
+     * Quantos serviços a conta pode ter, ou nulo se não houver limite. O limite impede que uma conta
+     * qualquer faça o servidor verificar milhares de URLs; o dono da vitrine não tem limite.
+     */
+    public Integer serviceLimit(Long userId) {
+        return maxServicesPerUser <= 0 || isOwner(userId) ? null : maxServicesPerUser;
     }
 
     public boolean configured() {
@@ -39,6 +54,6 @@ public class Showcase {
 
     /** Pode marcar serviços como públicos? Só o dono da vitrine (ou todos, se não houver vitrine). */
     public boolean canPublish(Long userId) {
-        return !configured() || ownerId().filter(userId::equals).isPresent();
+        return !configured() || isOwner(userId);
     }
 }

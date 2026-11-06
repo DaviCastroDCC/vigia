@@ -27,6 +27,9 @@ management:
 monitor:
   # Conta cujos serviços públicos aparecem para todos (página pública e painel). Vazio = sem vitrine.
   showcase-owner-email: ${SHOWCASE_OWNER_EMAIL:}
+  limits:
+    # Quantos serviços cada conta pode monitorar (0 = sem limite). O dono da vitrine não tem limite.
+    max-services-per-user: ${MAX_SERVICES_PER_USER:5}
   jwt:
     # Em produção, defina JWT_SECRET com pelo menos 32 caracteres aleatórios.
     secret: ${JWT_SECRET:dev-secret-change-me-dev-secret-change-me}

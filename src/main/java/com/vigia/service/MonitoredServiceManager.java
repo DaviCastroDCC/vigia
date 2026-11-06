@@ -64,6 +64,11 @@ public class MonitoredServiceManager {
 
     @Transactional
     public ServiceResponse create(Long ownerId, ServiceRequest req) {
+        Integer limit = showcase.serviceLimit(ownerId);
+        if (limit != null && services.countByOwnerId(ownerId) >= limit) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "Limite de " + limit + " serviços por conta atingido. Exclua um para adicionar outro.");
+        }
         String url = validatedUrl(req.url());
         var service = new MonitoredService(users.getReferenceById(ownerId), req.name().trim(), url,
                 req.intervalSeconds(), req.activeOrDefault(), publicPage(ownerId, req), req.slowThresholdOrDefault());

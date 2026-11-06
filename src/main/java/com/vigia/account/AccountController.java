@@ -36,9 +36,10 @@ public class AccountController {
         this.telegram = telegram;
     }
 
-    /** {@code canPublish}: pode marcar serviços como públicos (só o dono da vitrine). */
+    /** {@code canPublish}: pode marcar serviços como públicos (só o dono da vitrine).
+     * {@code serviceLimit}: máximo de serviços da conta (nulo = sem limite). */
     public record Me(String name, String email, boolean telegramAvailable, boolean telegramConnected,
-                     boolean canPublish) {
+                     boolean canPublish, Integer serviceLimit) {
     }
 
     public record TelegramLink(String url) {
@@ -49,7 +50,7 @@ public class AccountController {
     public Me me(@AuthenticationPrincipal AuthUser auth) {
         User user = find(auth);
         return new Me(user.getName(), user.getEmail(), telegram.enabled(), user.getTelegramChatId() != null,
-                showcase.canPublish(user.getId()));
+                showcase.canPublish(user.getId()), showcase.serviceLimit(user.getId()));
     }
 
     /** Gera um link de uso único: ao abri-lo e tocar em "Iniciar", o bot associa o chat a esta conta. */

@@ -30,6 +30,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       # Conta cujos serviços públicos formam a vitrine vista por todos
       SHOWCASE_OWNER_EMAIL: ${SHOWCASE_OWNER_EMAIL:-}
+      MAX_SERVICES_PER_USER: ${MAX_SERVICES_PER_USER:-5}
     ports:
       - "8080:8080"
     restart: unless-stopped

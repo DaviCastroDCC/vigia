@@ -105,7 +105,7 @@ O cadastro é aberto: qualquer pessoa pode criar uma conta e monitorar os própr
 | **Dono da vitrine** (`SHOWCASE_OWNER_EMAIL`) | Mostra os serviços que ele marca como públicos | Todos os seus serviços, com a opção "Público" |
 | **Demais usuários** | Veem a vitrine | Os próprios serviços (editáveis) e, abaixo, a vitrine (só leitura) |
 
-Os serviços dos demais usuários **nunca** aparecem para outras pessoas: o pedido de "público" de quem não é dono da vitrine é ignorado no servidor (não só escondido na tela). Assim, ninguém consegue criar uma conta e publicar spam na página de status. Sem `SHOWCASE_OWNER_EMAIL` (uso local), qualquer serviço marcado como público aparece.
+Os serviços dos demais usuários **nunca** aparecem para outras pessoas: o pedido de "público" de quem não é dono da vitrine é ignorado no servidor (não só escondido na tela). Assim, ninguém consegue criar uma conta e publicar spam na página de status. Cada conta também pode monitorar **no máximo 5 serviços** (`MAX_SERVICES_PER_USER`), para que ninguém use o servidor para verificar milhares de URLs; o dono da vitrine não tem limite. Sem `SHOWCASE_OWNER_EMAIL` (uso local), qualquer serviço marcado como público aparece.
 
 ### Exemplo
 

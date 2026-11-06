@@ -296,6 +296,37 @@ class MonitorApiTest {
                 .andExpect(status().isServiceUnavailable());
     }
 
+    @Test
+    void eachAccountHasAServiceLimit_exceptTheShowcaseOwner() throws Exception {
+        String user = registerAndGetToken();
+        mvc.perform(get("/api/me").header("Authorization", "Bearer " + user))
+                .andExpect(jsonPath("$.serviceLimit").value(5));
+        for (int i = 1; i <= 5; i++) {
+            createService(user, "Site " + i, "https://example.com/" + i);
+        }
+        mvc.perform(post("/api/services").header("Authorization", "Bearer " + user)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("name", "Sexto", "url", "https://example.com/6",
+                                "intervalSeconds", 60))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("Limite de 5")));
+
+        // excluir um libera a vaga
+        long first = json.readTree(mvc.perform(get("/api/services").header("Authorization", "Bearer " + user))
+                .andReturn().getResponse().getContentAsString()).get(0).get("id").asLong();
+        mvc.perform(delete("/api/services/" + first).header("Authorization", "Bearer " + user))
+                .andExpect(status().isNoContent());
+        createService(user, "Sexto", "https://example.com/6");
+
+        // o dono da vitrine não tem limite
+        String owner = showcaseToken();
+        mvc.perform(get("/api/me").header("Authorization", "Bearer " + owner))
+                .andExpect(jsonPath("$.serviceLimit").value(nullValue()));
+        for (int i = 1; i <= 6; i++) {
+            createService(owner, "Vitrine " + i, "https://example.com/v" + i);
+        }
+    }
+
     /** Token da conta dona da vitrine (monitor.showcase-owner-email no application-test.yml). */
     private String showcaseToken() throws Exception {
         String credentials = "{\"email\":\"vitrine@teste.com\",\"password\":\"senha-segura\"}";

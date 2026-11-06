@@ -11,6 +11,8 @@ public interface MonitoredServiceRepository extends JpaRepository<MonitoredServi
 
     Optional<MonitoredService> findByIdAndOwnerId(Long id, Long ownerId);
 
+    long countByOwnerId(Long ownerId);
+
     List<MonitoredService> findByActiveTrue();
 
     List<MonitoredService> findByPublicPageTrueOrderByNameAsc();

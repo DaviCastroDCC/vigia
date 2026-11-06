@@ -358,7 +358,7 @@ function renderCards(cards, dash) {
   // No painel: primeiro os seus serviços, depois a vitrine (serviços de exemplo, só leitura).
   const mine = cards.filter(c => c.mine), showcase = cards.filter(c => !c.mine);
   el.innerHTML = `
-    <h2 class="group-title">Seus serviços</h2>
+    <h2 class="group-title">Seus serviços${state.me?.serviceLimit ? ` <small>${mine.length} de ${state.me.serviceLimit}</small>` : ''}</h2>
     ${mine.length ? mine.map(c => cardHtml(c, true)).join('') : '<div class="empty-state">Você ainda não monitora nenhum serviço. Adicione um acima.</div>'}
     ${showcase.length ? `<h2 class="group-title">Vitrine <small>serviços monitorados pelo autor do Vigia, só para visualização</small></h2>
     ${showcase.map(c => cardHtml(c, false)).join('')}` : ''}`;
