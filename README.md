@@ -84,14 +84,15 @@ Os testes usam H2 em memória e um servidor HTTP falso, sem precisar de rede nem
 
 ## Página de status
 
-Acesse `http://localhost:8080/`. Sem login, ela mostra os serviços marcados como **públicos**:
+Acesse `http://localhost:8080/` (ou a [demonstração ao vivo](https://vigia-status.duckdns.org)). Sem login, ela mostra os serviços marcados como **públicos**:
 
 - status **online** (verde), **lento** (amarelo) ou **fora do ar** (vermelho);
 - uptime de 24 h, tempo médio de resposta e dias até o certificado SSL vencer (em destaque quando faltam menos de 14);
 - as últimas 60 verificações e um gráfico do tempo de resposta;
-- uma barra com os **últimos 90 dias**, um traço por dia, como nas páginas de status de grandes serviços. O resumo diário é agregado no banco e guardado em memória por alguns minutos, para não reprocessar 90 dias de dados a cada atualização da página.
+- uma barra com os **últimos 90 dias**, um traço por dia, como nas páginas de status de grandes serviços. O resumo diário é agregado no banco e guardado em memória por alguns minutos, para não reprocessar 90 dias de dados a cada atualização da página;
+- **Incidentes recentes**: quando cada serviço caiu, a causa e quanto tempo ficou fora (ou "em andamento").
 
-Em **Meu painel**, depois do login, você adiciona, verifica, exclui, escolhe quais serviços aparecem na página pública e copia o Markdown do badge de uptime. A página se atualiza sozinha a cada 15 s.
+Em **Meu painel**, depois do login, você adiciona, verifica, exclui, escolhe quais serviços aparecem na página pública, copia o Markdown do badge de uptime e conecta o Telegram para receber os alertas. A página se atualiza sozinha a cada 15 s.
 
 Todas as rotas `/api/services/**` exigem `Authorization: Bearer <token>`. Cada usuário só enxerga os próprios serviços.
 
@@ -112,7 +113,7 @@ curl -s localhost:8080/api/services/1/uptime?hours=24 -H "Authorization: Bearer 
 
 ## Segurança
 
-As credenciais (banco e segredo do JWT) ficam em variáveis de ambiente; o `.env.example` mostra quais são. O `.env` real nunca vai para o repositório.
+As credenciais (banco, segredo do JWT e token do bot do Telegram) ficam em variáveis de ambiente; o `.env.example` mostra quais são. O `.env` real nunca vai para o repositório, e o token do bot nunca aparece nos logs.
 
 ### Por que bloquear URLs internas?
 
@@ -126,8 +127,20 @@ Roda na AWS em uma instância EC2 com Docker Compose. Em produção, o [Caddy](h
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
+Para os alertas, crie um bot no [@BotFather](https://t.me/BotFather) e coloque o token em `TELEGRAM_BOT_TOKEN` no `.env`. Sem ele, o resto funciona normalmente e o botão do Telegram não aparece.
+
+## Versões
+
+| Versão | O que entrou |
+|---|---|
+| [v1.0.0](../../releases/tag/v1.0.0) | Cadastro e login com JWT, agendador com virtual threads, histórico e uptime, página de status, proteção contra SSRF, Docker e deploy na AWS com HTTPS |
+| [v1.1.0](../../releases/tag/v1.1.0) | Estado "lento", barra de 90 dias, validade do certificado SSL e badge de uptime |
+| v2.0.0 *(em andamento)* | Incidentes e alertas no Telegram ✅, CI/CD, infraestrutura como código |
+
 ## Próximas versões
 
+- [x] Incidentes e alertas no Telegram
+- [ ] CI/CD no GitHub Actions: testes a cada push e deploy automático
+- [ ] Infraestrutura da AWS em Terraform
 - [ ] Alertas também por e-mail
-- [ ] CI no GitHub Actions rodando `mvn test`
 - [ ] Limpeza automática de verificações antigas
