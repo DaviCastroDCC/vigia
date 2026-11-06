@@ -1,0 +1,15 @@
+[Unit]
+Description=Vigia: publica a versão nova da main se o CI passou
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/ec2-user/vigia
+ExecStart=/usr/bin/bash /home/ec2-user/vigia/deploy/auto-deploy.sh
+# O git do repositório pertence ao ec2-user; o root roda o docker.
+Environment=GIT_CONFIG_COUNT=1
+Environment=GIT_CONFIG_KEY_0=safe.directory
+Environment=GIT_CONFIG_VALUE_0=/home/ec2-user/vigia
+TimeoutStartSec=900
