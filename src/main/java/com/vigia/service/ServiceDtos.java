@@ -92,7 +92,9 @@ public final class ServiceDtos {
             Double uptime90d,
             List<DailyStat> daily,
             List<CheckPoint> recentChecks,
-            List<IncidentView> incidents) {
+            List<IncidentView> incidents,
+            /** Do usuário logado (editável) ou da vitrine (só leitura). */
+            boolean mine) {
     }
 
     /** Incidente para a página pública. {@code resolvedAt} nulo = em andamento. */

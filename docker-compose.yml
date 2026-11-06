@@ -28,6 +28,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no arquivo .env}
       # Opcional: token do bot do Telegram para alertas (vazio = desligado)
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      # Conta cujos serviços públicos formam a vitrine vista por todos
+      SHOWCASE_OWNER_EMAIL: ${SHOWCASE_OWNER_EMAIL:-}
     ports:
       - "8080:8080"
     restart: unless-stopped

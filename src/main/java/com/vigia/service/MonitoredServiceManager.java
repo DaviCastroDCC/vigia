@@ -37,10 +37,12 @@ public class MonitoredServiceManager {
     private final CheckRunner checkRunner;
     private final DailyStatsCache dailyStats;
     private final IncidentRepository incidents;
+    private final Showcase showcase;
 
     public MonitoredServiceManager(MonitoredServiceRepository services, HealthCheckRepository checks,
                                    UserRepository users, UrlGuard urlGuard, CheckRunner checkRunner,
-                                   DailyStatsCache dailyStats, IncidentRepository incidents) {
+                                   DailyStatsCache dailyStats, IncidentRepository incidents, Showcase showcase) {
+        this.showcase = showcase;
         this.services = services;
         this.checks = checks;
         this.users = users;
@@ -64,7 +66,7 @@ public class MonitoredServiceManager {
     public ServiceResponse create(Long ownerId, ServiceRequest req) {
         String url = validatedUrl(req.url());
         var service = new MonitoredService(users.getReferenceById(ownerId), req.name().trim(), url,
-                req.intervalSeconds(), req.activeOrDefault(), req.publicPageOrDefault(), req.slowThresholdOrDefault());
+                req.intervalSeconds(), req.activeOrDefault(), publicPage(ownerId, req), req.slowThresholdOrDefault());
         return ServiceResponse.from(services.save(service));
     }
 
@@ -72,8 +74,13 @@ public class MonitoredServiceManager {
     public ServiceResponse update(Long ownerId, Long id, ServiceRequest req) {
         MonitoredService service = find(ownerId, id);
         service.update(req.name().trim(), validatedUrl(req.url()), req.intervalSeconds(), req.activeOrDefault(),
-                req.publicPageOrDefault(), req.slowThresholdOrDefault());
+                publicPage(ownerId, req), req.slowThresholdOrDefault());
         return ServiceResponse.from(service);
+    }
+
+    /** Só o dono da vitrine publica; para os demais, "público" é sempre falso. */
+    private boolean publicPage(Long ownerId, ServiceRequest req) {
+        return req.publicPageOrDefault() && showcase.canPublish(ownerId);
     }
 
     @Transactional
@@ -105,19 +112,30 @@ public class MonitoredServiceManager {
         return new UptimeResponse(id, period, total, up, percent, avg);
     }
 
-    /** Cards do painel do usuário logado. */
+    /** Painel do usuário logado: os próprios serviços (editáveis) e, depois, a vitrine (só leitura). */
     @Transactional(readOnly = true)
     public List<StatusCard> dashboard(Long ownerId) {
-        return services.findByOwnerIdOrderByNameAsc(ownerId).stream().map(this::toCard).toList();
+        List<StatusCard> cards = new ArrayList<>(
+                services.findByOwnerIdOrderByNameAsc(ownerId).stream().map(s -> toCard(s, true)).toList());
+        showcase.ownerId().filter(id -> !id.equals(ownerId)).ifPresent(id ->
+                services.findByOwnerIdAndPublicPageTrueOrderByNameAsc(id).forEach(s -> cards.add(toCard(s, false))));
+        return cards;
     }
 
-    /** Cards da página pública: só serviços marcados como públicos. */
+    /** Página pública: a vitrine (ou, sem vitrine configurada, todo serviço marcado como público). */
     @Transactional(readOnly = true)
     public List<StatusCard> publicStatus() {
-        return services.findByPublicPageTrueOrderByNameAsc().stream().map(this::toCard).toList();
+        return publicServices().stream().map(s -> toCard(s, false)).toList();
     }
 
-    private StatusCard toCard(MonitoredService s) {
+    private List<MonitoredService> publicServices() {
+        if (!showcase.configured()) {
+            return services.findByPublicPageTrueOrderByNameAsc();
+        }
+        return showcase.ownerId().map(services::findByOwnerIdAndPublicPageTrueOrderByNameAsc).orElse(List.of());
+    }
+
+    private StatusCard toCard(MonitoredService s, boolean mine) {
         UptimeResponse uptime = uptimeOf(s.getId(), 24);
         List<CheckPoint> recent = new ArrayList<>(checks.findTop60ByServiceIdOrderByCheckedAtDesc(s.getId()).stream()
                 .map(c -> CheckPoint.from(c, s)).toList());
@@ -126,7 +144,7 @@ public class MonitoredServiceManager {
         return new StatusCard(s.getId(), s.getName(), s.getUrl(), s.isActive(), s.isPublicPage(),
                 s.getIntervalSeconds(), s.getSlowThresholdMs(), s.getLastStatus(), s.getLastCheckedAt(),
                 s.getCertExpiresAt(), uptime.uptimePercent(), uptime.avgResponseTimeMs(), percentOf(daily), daily,
-                recent, recentIncidents(s.getId()));
+                recent, recentIncidents(s.getId()), mine);
     }
 
     private List<IncidentView> recentIncidents(Long serviceId) {
@@ -144,9 +162,16 @@ public class MonitoredServiceManager {
     /** Uptime de um serviço público, para o badge. Serviços privados respondem 404. */
     @Transactional(readOnly = true)
     public UptimeResponse publicUptime(Long id, int days) {
-        services.findById(id).filter(MonitoredService::isPublicPage)
+        services.findById(id).filter(this::isPubliclyVisible)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Serviço não encontrado"));
         return uptimeOf(id, Math.clamp(days, 1, 90) * 24);
+    }
+
+    private boolean isPubliclyVisible(MonitoredService s) {
+        if (!s.isPublicPage()) {
+            return false;
+        }
+        return !showcase.configured() || showcase.ownerId().filter(s.getOwner().getId()::equals).isPresent();
     }
 
     /** Executa uma verificação imediata, sem esperar o agendador. */

@@ -78,6 +78,8 @@
   .tick.down { background: var(--down); }
   .tick.slow { background: var(--slow); }
   .axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  .group-title { grid-column: 1 / -1; margin: 6px 0 -4px; font-size: 15px; font-weight: 650; }
+  .group-title small { font-weight: 400; font-size: 12px; color: var(--muted); margin-left: 8px; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; justify-content: flex-end; font-size: 12px; color: var(--muted); margin: -12px 0 14px; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .legend .sw { width: 10px; height: 10px; border-radius: 2px; background: var(--wait-soft); border: 1px solid var(--border); }
@@ -243,7 +245,7 @@ function show(view) {
   $('#banner').classList.toggle('hidden', view === 'auth');
   $('#incidents').classList.toggle('hidden', view === 'auth');
   $('#legend').classList.toggle('hidden', view === 'auth');
-  if (view === 'dash') loadTelegram();
+  if (view === 'dash') loadTelegram().then(() => { if (state.view === 'dash') refresh(); });
   $('#nav-public').classList.toggle('active', view === 'public');
   $('#nav-dash').classList.toggle('active', view !== 'public');
   $('#nav-logout').classList.toggle('hidden', !state.token);
@@ -295,6 +297,9 @@ async function loadTelegram() {
   const el = $('#tg');
   try {
     const me = await api('/api/me');
+    state.me = me;
+    // Só o dono da vitrine publica serviços na página pública.
+    $('#add-form [name=publicPage]').closest('label').classList.toggle('hidden', !me.canPublish);
     if (!me.telegramAvailable) { el.classList.add('hidden'); return; }
     el.classList.remove('hidden');
     el.innerHTML = me.telegramConnected
@@ -345,11 +350,18 @@ function renderBanner(cards) {
 
 function renderCards(cards, dash) {
   const el = $('#cards');
-  if (!cards.length) {
-    el.innerHTML = `<div class="empty-state">${dash ? 'Adicione um serviço acima para começar.' : 'Nenhum serviço público. Entre em "Meu painel" e marque algum como público.'}</div>`;
+  if (!dash) {
+    el.innerHTML = cards.length ? cards.map(c => cardHtml(c, false)).join('')
+      : '<div class="empty-state">Nenhum serviço público no momento.</div>';
     return;
   }
-  el.innerHTML = cards.map(c => cardHtml(c, dash)).join('');
+  // No painel: primeiro os seus serviços, depois a vitrine (serviços de exemplo, só leitura).
+  const mine = cards.filter(c => c.mine), showcase = cards.filter(c => !c.mine);
+  el.innerHTML = `
+    <h2 class="group-title">Seus serviços</h2>
+    ${mine.length ? mine.map(c => cardHtml(c, true)).join('') : '<div class="empty-state">Você ainda não monitora nenhum serviço. Adicione um acima.</div>'}
+    ${showcase.length ? `<h2 class="group-title">Vitrine <small>serviços monitorados pelo autor do Vigia, só para visualização</small></h2>
+    ${showcase.map(c => cardHtml(c, false)).join('')}` : ''}`;
 }
 
 function cardHtml(c, dash) {
@@ -378,7 +390,7 @@ function cardHtml(c, dash) {
       <button data-act="check">Verificar agora</button>
       ${c.publicPage ? '<button data-act="badge" title="Copia o Markdown do badge de uptime">Copiar badge</button>' : ''}
       <button class="danger" data-act="delete">Excluir</button>
-      <label class="switch"><input type="checkbox" data-act="public" ${c.publicPage ? 'checked' : ''}> Público</label>
+      ${state.me?.canPublish ? `<label class="switch"><input type="checkbox" data-act="public" ${c.publicPage ? 'checked' : ''}> Público</label>` : ''}
     </div>` : ''}
   </article>`;
 }

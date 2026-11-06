@@ -2,8 +2,11 @@ package com.vigia.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+/**
+ * @param showcaseOwnerEmail conta cujos serviços públicos formam a vitrine (vazio = sem vitrine)
+ */
 @ConfigurationProperties(prefix = "monitor")
-public record MonitorProperties(Jwt jwt, Checker checker, Alerts alerts) {
+public record MonitorProperties(Jwt jwt, Checker checker, Alerts alerts, String showcaseOwnerEmail) {
 
     public record Jwt(String secret, long expirationMinutes) {
     }

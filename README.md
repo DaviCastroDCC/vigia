@@ -94,7 +94,18 @@ Acesse `http://localhost:8080/` (ou a [demonstração ao vivo](https://vigia-sta
 
 Em **Meu painel**, depois do login, você adiciona, verifica, exclui, escolhe quais serviços aparecem na página pública, copia o Markdown do badge de uptime e conecta o Telegram para receber os alertas. A página se atualiza sozinha a cada 15 s.
 
-Todas as rotas `/api/services/**` exigem `Authorization: Bearer <token>`. Cada usuário só enxerga os próprios serviços.
+Todas as rotas `/api/services/**` exigem `Authorization: Bearer <token>`.
+
+### Vitrine e privacidade entre usuários
+
+O cadastro é aberto: qualquer pessoa pode criar uma conta e monitorar os próprios sites. Para que isso seja seguro numa página pública, existe uma **vitrine**:
+
+| | Página pública (sem login) | Painel (logado) |
+|---|---|---|
+| **Dono da vitrine** (`SHOWCASE_OWNER_EMAIL`) | Mostra os serviços que ele marca como públicos | Todos os seus serviços, com a opção "Público" |
+| **Demais usuários** | Veem a vitrine | Os próprios serviços (editáveis) e, abaixo, a vitrine (só leitura) |
+
+Os serviços dos demais usuários **nunca** aparecem para outras pessoas: o pedido de "público" de quem não é dono da vitrine é ignorado no servidor (não só escondido na tela). Assim, ninguém consegue criar uma conta e publicar spam na página de status. Sem `SHOWCASE_OWNER_EMAIL` (uso local), qualquer serviço marcado como público aparece.
 
 ### Exemplo
 

@@ -25,6 +25,8 @@ management:
         include: health
 
 monitor:
+  # Conta cujos serviços públicos aparecem para todos (página pública e painel). Vazio = sem vitrine.
+  showcase-owner-email: ${SHOWCASE_OWNER_EMAIL:}
   jwt:
     # Em produção, defina JWT_SECRET com pelo menos 32 caracteres aleatórios.
     secret: ${JWT_SECRET:dev-secret-change-me-dev-secret-change-me}

@@ -152,23 +152,48 @@ class MonitorApiTest {
     }
 
     @Test
-    void publicStatusShowsOnlyPublicServices_andDashboardShowsAll() throws Exception {
-        String token = registerAndGetToken();
+    void showcaseIsVisibleToEveryone_butOtherUsersStayPrivate() throws Exception {
+        String owner = showcaseToken();
         String okUrl = "http://127.0.0.1:" + fakePort + "/ok";
-        long publicId = createService(token, "Publico", okUrl, true);
-        long privateId = createService(token, "Privado", okUrl, false);
-        mvc.perform(post("/api/services/" + publicId + "/check").header("Authorization", "Bearer " + token))
+        long showcaseId = createService(owner, "Vitrine", okUrl, true);
+        long ownerPrivateId = createService(owner, "Privado do dono", okUrl, false);
+        mvc.perform(post("/api/services/" + showcaseId + "/check").header("Authorization", "Bearer " + owner))
                 .andExpect(status().isOk());
 
+        // um usuário qualquer tenta publicar: o pedido é aceito, mas o serviço fica privado
+        String stranger = registerAndGetToken();
+        long strangerId = createService(stranger, "Spam", okUrl, true);
+        mvc.perform(get("/api/services/" + strangerId).header("Authorization", "Bearer " + stranger))
+                .andExpect(jsonPath("$.publicPage").value(false));
+        mvc.perform(get("/api/me").header("Authorization", "Bearer " + stranger))
+                .andExpect(jsonPath("$.canPublish").value(false));
+        mvc.perform(get("/api/me").header("Authorization", "Bearer " + owner))
+                .andExpect(jsonPath("$.canPublish").value(true));
+
+        // página pública: só a vitrine
         mvc.perform(get("/api/public/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.id == " + publicId + ")].uptime24h").value(100.0))
-                .andExpect(jsonPath("$[?(@.id == " + publicId + ")].recentChecks.length()").value(1))
-                .andExpect(jsonPath("$[?(@.id == " + privateId + ")]").isEmpty());
+                .andExpect(jsonPath("$[?(@.id == " + showcaseId + ")].uptime24h").value(100.0))
+                .andExpect(jsonPath("$[?(@.id == " + showcaseId + ")].recentChecks.length()").value(1))
+                .andExpect(jsonPath("$[?(@.id == " + ownerPrivateId + ")]").isEmpty())
+                .andExpect(jsonPath("$[?(@.id == " + strangerId + ")]").isEmpty());
 
-        mvc.perform(get("/api/services/dashboard").header("Authorization", "Bearer " + token))
+        // painel do usuário: os dele (editáveis) + a vitrine (só leitura), nunca o privado do dono
+        mvc.perform(get("/api/services/dashboard").header("Authorization", "Bearer " + stranger))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$[?(@.id == " + strangerId + ")].mine").value(hasItem(true)))
+                .andExpect(jsonPath("$[?(@.id == " + showcaseId + ")].mine").value(hasItem(false)))
+                .andExpect(jsonPath("$[?(@.id == " + ownerPrivateId + ")]").isEmpty());
+
+        // a vitrine aparece no painel, mas continua sendo só leitura para os outros
+        mvc.perform(post("/api/services/" + showcaseId + "/check").header("Authorization", "Bearer " + stranger))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete("/api/services/" + showcaseId).header("Authorization", "Bearer " + stranger))
+                .andExpect(status().isNotFound());
+
+        // o dono não vê a própria vitrine duplicada
+        mvc.perform(get("/api/services/dashboard").header("Authorization", "Bearer " + owner))
+                .andExpect(jsonPath("$[?(@.id == " + showcaseId + ")].mine").value(org.hamcrest.Matchers.contains(true)));
 
         mvc.perform(get("/")).andExpect(status().isOk());
     }
@@ -183,7 +208,7 @@ class MonitorApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.up").value(true));
 
-        mvc.perform(get("/api/public/status"))
+        mvc.perform(get("/api/services/dashboard").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.id == " + id + ")].lastStatus").value("DEGRADED"))
                 .andExpect(jsonPath("$[?(@.id == " + id + ")].slowThresholdMs").value(100))
@@ -207,10 +232,13 @@ class MonitorApiTest {
 
     @Test
     void badgeIsServedForPublicServices_only() throws Exception {
-        String token = registerAndGetToken();
+        String token = showcaseToken();
         String okUrl = "http://127.0.0.1:" + fakePort + "/ok";
         long publicId = createService(token, "Publico", okUrl, true);
         long privateId = createService(token, "Privado", okUrl, false);
+        long strangerId = createService(registerAndGetToken(), "Outro", okUrl, true);
+        mvc.perform(get("/api/public/services/" + strangerId + "/badge.svg"))
+                .andExpect(status().isNotFound());
         mvc.perform(post("/api/services/" + publicId + "/check").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
 
@@ -234,12 +262,12 @@ class MonitorApiTest {
         flakyStatus.set(503);
         mvc.perform(post(check).header("Authorization", "Bearer " + token)).andExpect(jsonPath("$.up").value(false));
         // uma falha isolada ainda não é incidente
-        mvc.perform(get("/api/public/status"))
+        mvc.perform(get("/api/services/dashboard").header("Authorization", "Bearer " + token))
                 .andExpect(jsonPath("$[?(@.id == " + id + ")].incidents.length()").value(0));
         verify(notifier, never()).notify(argThat(e -> e.serviceId() == id));
 
         mvc.perform(post(check).header("Authorization", "Bearer " + token)).andExpect(jsonPath("$.up").value(false));
-        mvc.perform(get("/api/public/status"))
+        mvc.perform(get("/api/services/dashboard").header("Authorization", "Bearer " + token))
                 .andExpect(jsonPath("$[?(@.id == " + id + ")].incidents.length()").value(1))
                 .andExpect(jsonPath("$[?(@.id == " + id + ")].incidents[0].cause").value("HTTP 503"))
                 .andExpect(jsonPath("$[?(@.id == " + id + ")].incidents[0].resolvedAt").value(hasItem(nullValue())));
@@ -251,7 +279,7 @@ class MonitorApiTest {
 
         flakyStatus.set(200);
         mvc.perform(post(check).header("Authorization", "Bearer " + token)).andExpect(jsonPath("$.up").value(true));
-        mvc.perform(get("/api/public/status"))
+        mvc.perform(get("/api/services/dashboard").header("Authorization", "Bearer " + token))
                 .andExpect(jsonPath("$[?(@.id == " + id + ")].incidents.length()").value(1))
                 .andExpect(jsonPath("$[?(@.id == " + id + ")].incidents[0].resolvedAt").exists());
         verify(notifier).notify(argThat(e -> e.serviceId() == id && e.type() == IncidentEvent.Type.RESOLVED));
@@ -266,6 +294,19 @@ class MonitorApiTest {
                 .andExpect(jsonPath("$.telegramConnected").value(false));
         mvc.perform(post("/api/me/telegram").header("Authorization", "Bearer " + token))
                 .andExpect(status().isServiceUnavailable());
+    }
+
+    /** Token da conta dona da vitrine (monitor.showcase-owner-email no application-test.yml). */
+    private String showcaseToken() throws Exception {
+        String credentials = "{\"email\":\"vitrine@teste.com\",\"password\":\"senha-segura\"}";
+        var login = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(credentials))
+                .andReturn().getResponse();
+        String body = login.getStatus() == 200 ? login.getContentAsString()
+                : mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Vitrine\",\"email\":\"vitrine@teste.com\",\"password\":\"senha-segura\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return json.readTree(body).get("token").asText();
     }
 
     private String registerAndGetToken() throws Exception {

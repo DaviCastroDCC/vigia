@@ -4,6 +4,7 @@ import com.vigia.auth.User;
 import com.vigia.auth.UserRepository;
 import com.vigia.common.ApiException;
 import com.vigia.security.AuthUser;
+import com.vigia.service.Showcase;
 import com.vigia.telegram.TelegramClient;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,13 +28,17 @@ public class AccountController {
 
     private final UserRepository users;
     private final TelegramClient telegram;
+    private final Showcase showcase;
 
-    public AccountController(UserRepository users, TelegramClient telegram) {
+    public AccountController(UserRepository users, TelegramClient telegram, Showcase showcase) {
+        this.showcase = showcase;
         this.users = users;
         this.telegram = telegram;
     }
 
-    public record Me(String name, String email, boolean telegramAvailable, boolean telegramConnected) {
+    /** {@code canPublish}: pode marcar serviços como públicos (só o dono da vitrine). */
+    public record Me(String name, String email, boolean telegramAvailable, boolean telegramConnected,
+                     boolean canPublish) {
     }
 
     public record TelegramLink(String url) {
@@ -43,7 +48,8 @@ public class AccountController {
     @Transactional(readOnly = true)
     public Me me(@AuthenticationPrincipal AuthUser auth) {
         User user = find(auth);
-        return new Me(user.getName(), user.getEmail(), telegram.enabled(), user.getTelegramChatId() != null);
+        return new Me(user.getName(), user.getEmail(), telegram.enabled(), user.getTelegramChatId() != null,
+                showcase.canPublish(user.getId()));
     }
 
     /** Gera um link de uso único: ao abri-lo e tocar em "Iniciar", o bot associa o chat a esta conta. */

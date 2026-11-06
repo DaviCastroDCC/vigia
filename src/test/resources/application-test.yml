@@ -9,3 +9,4 @@ monitor:
     enabled: false
     block-private-addresses: false
     timeout-seconds: 3
+  showcase-owner-email: vitrine@teste.com
