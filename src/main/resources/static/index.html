@@ -78,6 +78,14 @@
   .tick.down { background: var(--down); }
   .tick.slow { background: var(--slow); }
   .axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; justify-content: flex-end; font-size: 12px; color: var(--muted); margin: -12px 0 14px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .sw { width: 10px; height: 10px; border-radius: 2px; background: var(--wait-soft); border: 1px solid var(--border); }
+  .legend .sw.up { background: var(--up); border-color: var(--up); }
+  .legend .sw.slow { background: var(--slow); border-color: var(--slow); }
+  .legend .sw.down { background: var(--down); border-color: var(--down); }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
 
   .days-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin: 14px 0 4px; }
   .days-head b { color: var(--text); font-weight: 600; }
@@ -193,11 +201,14 @@
   </section>
 
   <div id="banner" class="banner wait hidden"></div>
+  <div id="legend" class="legend hidden" aria-label="Legenda das cores">
+    <span><i class="sw up"></i>Online</span><span><i class="sw slow"></i>Lento ou instável</span><span><i class="sw down"></i>Fora do ar</span><span><i class="sw"></i>Sem dados</span>
+  </div>
   <div id="cards" class="grid"></div>
   <section id="incidents" class="panel incidents hidden"></section>
 </main>
 
-<footer>Atualiza sozinho a cada 15 segundos · Java 21 · Spring Boot · PostgreSQL</footer>
+<footer>Atualiza sozinho a cada 15 segundos · Java 21 · Spring Boot · PostgreSQL · <a href="https://github.com/DaviCastroDCC/vigia" target="_blank" rel="noopener">Código no GitHub</a></footer>
 
 <script>
 const REFRESH_MS = 15000;
@@ -231,6 +242,7 @@ function show(view) {
   $('#cards').classList.toggle('hidden', view === 'auth');
   $('#banner').classList.toggle('hidden', view === 'auth');
   $('#incidents').classList.toggle('hidden', view === 'auth');
+  $('#legend').classList.toggle('hidden', view === 'auth');
   if (view === 'dash') loadTelegram();
   $('#nav-public').classList.toggle('active', view === 'public');
   $('#nav-dash').classList.toggle('active', view !== 'public');
