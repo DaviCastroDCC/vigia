@@ -34,7 +34,7 @@ docker compose up -d --build
 ### Sem Docker (precisa de um PostgreSQL local)
 
 ```bash
-# banco "vigia", usuário "vigia", senha "vigia" (ou defina DB_URL, DB_USER, DB_PASSWORD)
+# configure a conexão com o banco nas variáveis listadas no .env.example
 mvn spring-boot:run
 ```
 
@@ -75,7 +75,7 @@ Todas as rotas `/api/services/**` exigem `Authorization: Bearer <token>`. Cada u
 ```bash
 TOKEN=$(curl -s -X POST localhost:8080/api/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Davi","email":"davi@exemplo.com","password":"senha-segura"}' | jq -r .token)
+  -d '{"name":"Usuario","email":"usuario@exemplo.com","password":"sua-senha"}' | jq -r .token)
 
 curl -s -X POST localhost:8080/api/services \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
@@ -85,39 +85,20 @@ curl -s localhost:8080/api/services/1/uptime?hours=24 -H "Authorization: Bearer 
 # {"serviceId":1,"periodHours":24,"totalChecks":1440,"upChecks":1438,"uptimePercent":99.86,"avgResponseTimeMs":212.4}
 ```
 
-## Configuração
+## Segurança
 
-| Variável | Padrão | Uso |
-|---|---|---|
-| `DB_URL` / `DB_USER` / `DB_PASSWORD` | `localhost:5432/vigia` | Conexão com o PostgreSQL |
-| `JWT_SECRET` | segredo de desenvolvimento | **Obrigatório em produção**, mínimo de 32 caracteres |
-| `JWT_EXPIRATION_MINUTES` | `120` | Validade do token |
-| `CHECKER_TICK_MS` | `10000` | De quanto em quanto tempo o agendador procura verificações pendentes |
-| `CHECKER_TIMEOUT_SECONDS` | `10` | Tempo máximo de cada requisição |
-| `CHECKER_BLOCK_PRIVATE` | `true` | Bloqueia URLs internas (localhost, 10.x, 192.168.x, 169.254.169.254) |
+As credenciais (banco e segredo do JWT) ficam em variáveis de ambiente; o `.env.example` mostra quais são. O `.env` real nunca vai para o repositório.
 
 ### Por que bloquear URLs internas?
 
 Como qualquer usuário cadastra uma URL e o servidor faz a requisição, sem esse bloqueio alguém poderia usar a API para acessar a rede interna da AWS, por exemplo o endpoint de metadados `169.254.169.254`, que expõe credenciais da instância. Isso se chama SSRF. Por isso a API também não segue redirecionamentos: um 3xx já conta como "no ar".
 
-## Deploy na AWS (EC2 + Docker Compose)
+## Deploy
 
-1. Crie uma instância EC2 (t3.micro ou t4g.small, Amazon Linux 2023) e libere a porta 8080 (ou 80/443 se usar um proxy) no Security Group.
-2. Instale Docker e o plugin Compose:
-   ```bash
-   sudo dnf install -y docker git && sudo systemctl enable --now docker
-   sudo mkdir -p /usr/local/lib/docker/cli-plugins
-   sudo curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m) \
-     -o /usr/local/lib/docker/cli-plugins/docker-compose && sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-   ```
-3. Clone o repositório, crie o `.env` com senhas fortes e rode `sudo docker compose up -d --build`.
-
-Próximo passo mais robusto: banco no RDS e a API no ECS/Fargate ou App Runner.
+Roda na AWS em uma instância EC2 com Docker Compose.
 
 ## Próximas versões
 
 - [ ] Alerta por e-mail ou Telegram quando um serviço muda de UP para DOWN
-- [x] Página pública de status com gráfico de tempo de resposta (`/`)
-- [x] Documentação OpenAPI/Swagger (`/swagger-ui.html`)
 - [ ] CI no GitHub Actions rodando `mvn test`
 - [ ] Limpeza automática de verificações antigas
