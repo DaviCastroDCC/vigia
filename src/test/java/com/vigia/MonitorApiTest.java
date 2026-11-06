@@ -16,6 +16,18 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import com.vigia.incident.IncidentEvent;
+import com.vigia.incident.IncidentNotifier;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -39,6 +51,12 @@ class MonitorApiTest {
     @Autowired
     ObjectMapper json;
 
+    /** O envio real (Telegram) é substituído: o teste só confere quais alertas seriam enviados. */
+    @MockitoBean
+    IncidentNotifier notifier;
+
+    private static final AtomicInteger flakyStatus = new AtomicInteger(200);
+
     @BeforeAll
     static void startFakeSite() throws Exception {
         fakeSite = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -57,6 +75,10 @@ class MonitorApiTest {
                 Thread.currentThread().interrupt();
             }
             ex.sendResponseHeaders(200, -1);
+            ex.close();
+        });
+        fakeSite.createContext("/flaky", ex -> {
+            ex.sendResponseHeaders(flakyStatus.get(), -1);
             ex.close();
         });
         fakeSite.start();
@@ -201,6 +223,49 @@ class MonitorApiTest {
 
         mvc.perform(get("/api/public/services/" + privateId + "/badge.svg"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void incidentOpensAfterTwoFailures_andResolvesOnRecovery() throws Exception {
+        String token = registerAndGetToken();
+        long id = createService(token, "Instavel", "http://127.0.0.1:" + fakePort + "/flaky", true);
+        String check = "/api/services/" + id + "/check";
+
+        flakyStatus.set(503);
+        mvc.perform(post(check).header("Authorization", "Bearer " + token)).andExpect(jsonPath("$.up").value(false));
+        // uma falha isolada ainda não é incidente
+        mvc.perform(get("/api/public/status"))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].incidents.length()").value(0));
+        verify(notifier, never()).notify(argThat(e -> e.serviceId() == id));
+
+        mvc.perform(post(check).header("Authorization", "Bearer " + token)).andExpect(jsonPath("$.up").value(false));
+        mvc.perform(get("/api/public/status"))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].incidents.length()").value(1))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].incidents[0].cause").value("HTTP 503"))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].incidents[0].resolvedAt").value(hasItem(nullValue())));
+        verify(notifier).notify(argThat(e -> e.serviceId() == id && e.type() == IncidentEvent.Type.OPENED));
+
+        // a terceira falha não abre outro incidente nem manda outro alerta
+        mvc.perform(post(check).header("Authorization", "Bearer " + token)).andExpect(jsonPath("$.up").value(false));
+        verify(notifier, times(1)).notify(argThat(e -> e.serviceId() == id && e.type() == IncidentEvent.Type.OPENED));
+
+        flakyStatus.set(200);
+        mvc.perform(post(check).header("Authorization", "Bearer " + token)).andExpect(jsonPath("$.up").value(true));
+        mvc.perform(get("/api/public/status"))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].incidents.length()").value(1))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].incidents[0].resolvedAt").exists());
+        verify(notifier).notify(argThat(e -> e.serviceId() == id && e.type() == IncidentEvent.Type.RESOLVED));
+    }
+
+    @Test
+    void telegramLinkIsUnavailableWithoutBotToken() throws Exception {
+        String token = registerAndGetToken();
+        mvc.perform(get("/api/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.telegramAvailable").value(false))
+                .andExpect(jsonPath("$.telegramConnected").value(false));
+        mvc.perform(post("/api/me/telegram").header("Authorization", "Bearer " + token))
+                .andExpect(status().isServiceUnavailable());
     }
 
     private String registerAndGetToken() throws Exception {

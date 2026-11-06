@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class UrlGuardTest {
 
     private final UrlGuard guard = new UrlGuard(new MonitorProperties(null,
-            new MonitorProperties.Checker(10000, 10, true)));
+            new MonitorProperties.Checker(10000, 10, true), null));
 
     @Test
     void blocksInternalAddresses() {

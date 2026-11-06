@@ -36,3 +36,9 @@ monitor:
     # Bloqueia URLs que apontam para a rede interna (localhost, 10.x, 169.254.x...).
     # Importante quando a API fica pública na AWS.
     block-private-addresses: ${CHECKER_BLOCK_PRIVATE:true}
+  alerts:
+    # Falhas seguidas antes de abrir um incidente e alertar (evita alarme por oscilação).
+    failures-before-incident: ${ALERTS_FAILURES_BEFORE_INCIDENT:2}
+    zone: ${ALERTS_ZONE:America/Sao_Paulo}
+    # Token do bot criado no @BotFather. Vazio = alertas no Telegram desligados.
+    telegram-bot-token: ${TELEGRAM_BOT_TOKEN:}

@@ -29,6 +29,12 @@ public class User {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "telegram_chat_id")
+    private Long telegramChatId;
+
+    @Column(name = "telegram_link_code", length = 40, unique = true)
+    private String telegramLinkCode;
+
     protected User() {
     }
 
@@ -57,5 +63,24 @@ public class User {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Long getTelegramChatId() {
+        return telegramChatId;
+    }
+
+    /** Gera o código que vai no link do bot; vale até ser usado. */
+    public void startTelegramLink(String code) {
+        this.telegramLinkCode = code;
+    }
+
+    public void linkTelegram(long chatId) {
+        this.telegramChatId = chatId;
+        this.telegramLinkCode = null;
+    }
+
+    public void unlinkTelegram() {
+        this.telegramChatId = null;
+        this.telegramLinkCode = null;
     }
 }

@@ -15,17 +15,26 @@ API REST que monitora sites e APIs: verifica cada URL periodicamente, salva o st
 3. Uma tarefa `@Scheduled` roda a cada 10 s, pega os serviços cujo intervalo já venceu e verifica todos **em paralelo com virtual threads**, para que um site lento não atrase os outros.
 4. Cada verificação é salva em `health_checks` (status HTTP, tempo de resposta, erro). Status menor que 400 conta como **UP**; se a resposta passar do limite configurado no serviço (padrão 1000 ms), ele fica **DEGRADED** (lento), mas continua contando no uptime.
 5. Em URLs HTTPS, a validade do certificado é lida da própria conexão TLS, sem requisição extra.
-6. Os endpoints de histórico, uptime, resumo diário e badge leem essas verificações.
+6. **Incidentes:** depois de 2 falhas seguidas (uma falha isolada pode ser só oscilação de rede), um incidente é aberto com a hora da primeira falha e a causa. Ele é encerrado na primeira verificação bem-sucedida. Tudo acontece na mesma transação que salva a verificação.
+7. **Alertas no Telegram:** quando um incidente abre ou fecha, o dono do serviço recebe uma mensagem. O aviso só sai depois do commit, para nunca alertar sobre algo que não ficou salvo.
+8. Os endpoints de histórico, uptime, resumo diário, incidentes e badge leem esses dados.
 
 ```
 src/main/java/com/vigia
 ├── auth/       cadastro, login, entidade User
+├── account/    dados da conta e conexão com o Telegram
 ├── security/   JwtService, filtro JWT, SecurityConfig
-├── service/    CRUD dos serviços monitorados + histórico e uptime
+├── service/    CRUD dos serviços monitorados, histórico, uptime, resumo diário e badge
 ├── check/      agendador, cliente HTTP, gravação dos resultados, proteção contra SSRF
+├── incident/   abertura/encerramento de incidentes e envio dos alertas
+├── telegram/   cliente da Bot API e vínculo do chat com a conta
 ├── common/     tratamento de erros (RFC 7807)
 └── config/     propriedades da aplicação
 ```
+
+### Conectando o Telegram sem copiar ID
+
+No painel, **Conectar Telegram** gera um link `t.me/<bot>?start=<código>` de uso único. Ao tocar em **Iniciar**, o Telegram envia `/start <código>` ao bot; o Vigia lê essa mensagem (polling com `getUpdates`, sem precisar de webhook público), encontra a conta pelo código e passa a mandar os alertas para aquele chat.
 
 ## Rodando
 
@@ -66,8 +75,11 @@ Os testes usam H2 em memória e um servidor HTTP falso, sem precisar de rede nem
 | GET | `/api/services/{id}/checks?page=0&size=50` | Histórico, do mais recente ao mais antigo |
 | GET | `/api/services/{id}/uptime?hours=24` | Uptime em % e tempo médio de resposta |
 | GET | `/api/services/dashboard` | Seus serviços com uptime 24h e últimas 60 verificações |
-| GET | `/api/public/status` | Mesmo formato, só dos serviços marcados como públicos (sem login) |
+| GET | `/api/public/status` | Mesmo formato, só dos serviços marcados como públicos (sem login), com os incidentes recentes |
 | GET | `/api/public/services/{id}/badge.svg?days=30` | Badge SVG de uptime para README (só serviços públicos) |
+| GET | `/api/me` | Dados da conta e se o Telegram está conectado |
+| POST | `/api/me/telegram` | Gera o link de uso único para conectar o Telegram |
+| DELETE | `/api/me/telegram` | Desconecta o Telegram |
 | GET | `/actuator/health` | Health check da própria API |
 
 ## Página de status
@@ -116,6 +128,6 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 ## Próximas versões
 
-- [ ] Alerta por e-mail ou Telegram quando um serviço muda de UP para DOWN
+- [ ] Alertas também por e-mail
 - [ ] CI no GitHub Actions rodando `mvn test`
 - [ ] Limpeza automática de verificações antigas

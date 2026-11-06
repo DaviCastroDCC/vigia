@@ -36,7 +36,7 @@
   button, .btn { font: inherit; font-size: 14px; border: 1px solid var(--border); background: var(--surface);
                  color: var(--text); padding: 7px 13px; border-radius: 8px; cursor: pointer; }
   button:hover { border-color: var(--muted); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary, .btn.primary { text-decoration: none; background: var(--accent); border-color: var(--accent); color: #fff; }
   button.ghost { border-color: transparent; background: transparent; }
   button.ghost.active { background: var(--wait-soft); }
   button.danger:hover { color: var(--down); border-color: var(--down); }
@@ -120,6 +120,21 @@
   .error { color: var(--down); font-size: 13px; min-height: 18px; }
   .empty-state { text-align: center; color: var(--muted); padding: 50px 16px; grid-column: 1 / -1; }
   footer { color: var(--muted); font-size: 12px; text-align: center; padding: 0 16px 30px; }
+
+  .tg { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px;
+        border-top: 1px solid var(--border); font-size: 14px; color: var(--muted); }
+  .tg b { color: var(--text); }
+  .tg .ok { color: var(--up); font-weight: 600; }
+  .incidents { margin: 0 0 40px; }
+  .incidents ul { list-style: none; margin: 0; padding: 0; }
+  .incidents li { display: flex; gap: 12px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--border); font-size: 14px; }
+  .incidents li:first-child { border-top: 0; }
+  .incidents .when { color: var(--muted); font-size: 13px; white-space: nowrap; min-width: 92px; }
+  .incidents .what { flex: 1; min-width: 0; }
+  .incidents .cause { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .incidents .dur { white-space: nowrap; font-size: 13px; font-weight: 600; }
+  .incidents .dur.open { color: var(--down); }
+  .incidents .dur.done { color: var(--up); }
   .hidden { display: none !important; }
 
   @media (max-width: 760px) {
@@ -173,11 +188,13 @@
         <button class="primary" type="submit">Adicionar</button>
       </form>
       <div class="error" id="add-error"></div>
+      <div class="tg hidden" id="tg"></div>
     </div>
   </section>
 
   <div id="banner" class="banner wait hidden"></div>
   <div id="cards" class="grid"></div>
+  <section id="incidents" class="panel incidents hidden"></section>
 </main>
 
 <footer>Atualiza sozinho a cada 15 segundos · Java 21 · Spring Boot · PostgreSQL</footer>
@@ -213,6 +230,8 @@ function show(view) {
   $('#view-dash').classList.toggle('hidden', view !== 'dash');
   $('#cards').classList.toggle('hidden', view === 'auth');
   $('#banner').classList.toggle('hidden', view === 'auth');
+  $('#incidents').classList.toggle('hidden', view === 'auth');
+  if (view === 'dash') loadTelegram();
   $('#nav-public').classList.toggle('active', view === 'public');
   $('#nav-dash').classList.toggle('active', view !== 'public');
   $('#nav-logout').classList.toggle('hidden', !state.token);
@@ -229,10 +248,65 @@ async function refresh() {
     const cards = await api(dash ? '/api/services/dashboard' : '/api/public/status');
     renderBanner(cards);
     renderCards(cards, dash);
+    renderIncidents(cards);
   } catch (e) {
     $('#cards').innerHTML = `<div class="empty-state">${esc(e.message)}</div>`;
   }
 }
+
+/* Incidentes de todos os serviços, do mais recente ao mais antigo. */
+function renderIncidents(cards) {
+  const list = cards.flatMap(c => (c.incidents || []).map(i => ({ ...i, name: c.name })))
+    .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt)).slice(0, 10);
+  const el = $('#incidents');
+  const items = list.map(i => {
+    const open = !i.resolvedAt;
+    const dur = duration(new Date(i.startedAt), open ? new Date() : new Date(i.resolvedAt));
+    const when = new Date(i.startedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `<li><span class="when">${when}</span>
+      <span class="what"><b>${esc(i.name)}</b> fora do ar<span class="cause" title="${esc(i.cause)}">${esc(i.cause || '')}</span></span>
+      <span class="dur ${open ? 'open' : 'done'}">${open ? 'em andamento · ' + dur : 'resolvido · ' + dur}</span></li>`;
+  }).join('');
+  el.innerHTML = `<h2>Incidentes recentes</h2>${list.length ? `<ul>${items}</ul>` : '<div class="cause">Nenhum incidente nos últimos 90 dias.</div>'}`;
+}
+
+function duration(from, to) {
+  const min = Math.max(1, Math.round((to - from) / 60000));
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60), m = min % 60;
+  if (h < 48) return m ? `${h} h ${m} min` : `${h} h`;
+  return `${Math.round(h / 24)} dias`;
+}
+
+/* ---------- Telegram ---------- */
+async function loadTelegram() {
+  const el = $('#tg');
+  try {
+    const me = await api('/api/me');
+    if (!me.telegramAvailable) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    el.innerHTML = me.telegramConnected
+      ? `<span class="ok">✓ Telegram conectado</span><span>Você recebe um aviso quando um serviço cai e quando volta.</span><button class="ghost" data-tg="unlink">Desconectar</button>`
+      : `<span><b>Alertas no Telegram:</b> receba um aviso quando um serviço cair e quando voltar.</span><button class="primary" data-tg="link">Conectar Telegram</button>`;
+  } catch { el.classList.add('hidden'); }
+}
+
+$('#tg').addEventListener('click', async (e) => {
+  const action = e.target.dataset.tg;
+  if (!action) return;
+  try {
+    if (action === 'link') {
+      const { url } = await api('/api/me/telegram', { method: 'POST' });
+      $('#tg').innerHTML = `<a class="btn primary" href="${esc(url)}" target="_blank" rel="noopener">Abrir o bot no Telegram</a>
+        <span>Toque em <b>Iniciar</b> no Telegram e depois volte aqui.</span><button data-tg="refresh">Já conectei</button>`;
+    } else if (action === 'unlink') {
+      await api('/api/me/telegram', { method: 'DELETE' });
+      loadTelegram();
+    } else {
+      loadTelegram();
+    }
+  } catch (err) { alert(err.message); }
+});
 
 function statusOf(c) {
   if (!c.active) return { cls: 'wait', label: 'Pausado' };

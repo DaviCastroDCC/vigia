@@ -26,6 +26,8 @@ services:
       DB_USER: ${DB_USER:-vigia}
       DB_PASSWORD: ${DB_PASSWORD:-vigia}
       JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no arquivo .env}
+      # Opcional: token do bot do Telegram para alertas (vazio = desligado)
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
     ports:
       - "8080:8080"
     restart: unless-stopped

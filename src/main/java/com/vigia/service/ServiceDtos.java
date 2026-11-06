@@ -1,6 +1,7 @@
 package com.vigia.service;
 
 import com.vigia.check.HealthCheck;
+import com.vigia.incident.Incident;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -90,7 +91,16 @@ public final class ServiceDtos {
             Double avgResponseTimeMs24h,
             Double uptime90d,
             List<DailyStat> daily,
-            List<CheckPoint> recentChecks) {
+            List<CheckPoint> recentChecks,
+            List<IncidentView> incidents) {
+    }
+
+    /** Incidente para a página pública. {@code resolvedAt} nulo = em andamento. */
+    public record IncidentView(Instant startedAt, Instant resolvedAt, String cause) {
+
+        public static IncidentView from(Incident i) {
+            return new IncidentView(i.getStartedAt(), i.getResolvedAt(), i.getCause());
+        }
     }
 
     public record CheckResponse(

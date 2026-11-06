@@ -6,6 +6,8 @@ import com.vigia.check.HealthCheckRepository;
 import com.vigia.check.UptimeStats;
 import com.vigia.check.UrlGuard;
 import com.vigia.common.ApiException;
+import com.vigia.incident.IncidentRepository;
+import com.vigia.service.ServiceDtos.IncidentView;
 import com.vigia.service.ServiceDtos.CheckPoint;
 import com.vigia.service.ServiceDtos.CheckResponse;
 import com.vigia.service.ServiceDtos.DailyStat;
@@ -34,16 +36,18 @@ public class MonitoredServiceManager {
     private final UrlGuard urlGuard;
     private final CheckRunner checkRunner;
     private final DailyStatsCache dailyStats;
+    private final IncidentRepository incidents;
 
     public MonitoredServiceManager(MonitoredServiceRepository services, HealthCheckRepository checks,
                                    UserRepository users, UrlGuard urlGuard, CheckRunner checkRunner,
-                                   DailyStatsCache dailyStats) {
+                                   DailyStatsCache dailyStats, IncidentRepository incidents) {
         this.services = services;
         this.checks = checks;
         this.users = users;
         this.urlGuard = urlGuard;
         this.checkRunner = checkRunner;
         this.dailyStats = dailyStats;
+        this.incidents = incidents;
     }
 
     @Transactional(readOnly = true)
@@ -122,7 +126,13 @@ public class MonitoredServiceManager {
         return new StatusCard(s.getId(), s.getName(), s.getUrl(), s.isActive(), s.isPublicPage(),
                 s.getIntervalSeconds(), s.getSlowThresholdMs(), s.getLastStatus(), s.getLastCheckedAt(),
                 s.getCertExpiresAt(), uptime.uptimePercent(), uptime.avgResponseTimeMs(), percentOf(daily), daily,
-                recent);
+                recent, recentIncidents(s.getId()));
+    }
+
+    private List<IncidentView> recentIncidents(Long serviceId) {
+        Instant since = Instant.now().minus(Duration.ofDays(90));
+        return incidents.findTop5ByServiceIdAndStartedAtAfterOrderByStartedAtDesc(serviceId, since).stream()
+                .map(IncidentView::from).toList();
     }
 
     private static Double percentOf(List<DailyStat> days) {

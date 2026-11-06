@@ -58,6 +58,12 @@ public class MonitoredService {
     @Column(name = "cert_expires_at")
     private Instant certExpiresAt;
 
+    @Column(name = "consecutive_failures", nullable = false)
+    private int consecutiveFailures;
+
+    @Column(name = "failing_since")
+    private Instant failingSince;
+
     protected MonitoredService() {
     }
 
@@ -98,7 +104,12 @@ public class MonitoredService {
     public void registerCheck(boolean up, Long responseTimeMs, Instant checkedAt, Instant certExpiresAt) {
         if (!up) {
             this.lastStatus = ServiceStatus.DOWN;
+            if (consecutiveFailures++ == 0) {
+                this.failingSince = checkedAt;
+            }
         } else {
+            this.consecutiveFailures = 0;
+            this.failingSince = null;
             this.lastStatus = isSlow(true, responseTimeMs) ? ServiceStatus.DEGRADED : ServiceStatus.UP;
         }
         this.lastCheckedAt = checkedAt;
@@ -113,6 +124,15 @@ public class MonitoredService {
 
     public Instant getCertExpiresAt() {
         return certExpiresAt;
+    }
+
+    public int getConsecutiveFailures() {
+        return consecutiveFailures;
+    }
+
+    /** Momento da primeira falha da sequência atual (nulo se o serviço está respondendo). */
+    public Instant getFailingSince() {
+        return failingSince;
     }
 
     public Long getId() {
