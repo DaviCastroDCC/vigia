@@ -1,6 +1,10 @@
 # Vigia
 
+![uptime](https://vigia-status.duckdns.org/api/public/services/7/badge.svg)
+
 API REST que monitora sites e APIs: verifica cada URL periodicamente, salva o status e o tempo de resposta e calcula o uptime.
+
+**Demonstração ao vivo:** https://vigia-status.duckdns.org (o badge acima é gerado pelo próprio Vigia, monitorando a si mesmo)
 
 **Stack:** Java 21 · Spring Boot 3.5 · Spring Security + JWT · Spring Data JPA · PostgreSQL · Flyway · Docker
 
@@ -9,8 +13,9 @@ API REST que monitora sites e APIs: verifica cada URL periodicamente, salva o st
 1. O usuário se cadastra e recebe um token JWT.
 2. Cadastra os serviços que quer monitorar (nome, URL, intervalo em segundos).
 3. Uma tarefa `@Scheduled` roda a cada 10 s, pega os serviços cujo intervalo já venceu e verifica todos **em paralelo com virtual threads**, para que um site lento não atrase os outros.
-4. Cada verificação é salva em `health_checks` (status HTTP, tempo de resposta, erro). Status menor que 400 conta como **UP**.
-5. Os endpoints de histórico e de uptime leem essas verificações.
+4. Cada verificação é salva em `health_checks` (status HTTP, tempo de resposta, erro). Status menor que 400 conta como **UP**; se a resposta passar do limite configurado no serviço (padrão 1000 ms), ele fica **DEGRADED** (lento), mas continua contando no uptime.
+5. Em URLs HTTPS, a validade do certificado é lida da própria conexão TLS, sem requisição extra.
+6. Os endpoints de histórico, uptime, resumo diário e badge leem essas verificações.
 
 ```
 src/main/java/com/vigia
@@ -62,11 +67,19 @@ Os testes usam H2 em memória e um servidor HTTP falso, sem precisar de rede nem
 | GET | `/api/services/{id}/uptime?hours=24` | Uptime em % e tempo médio de resposta |
 | GET | `/api/services/dashboard` | Seus serviços com uptime 24h e últimas 60 verificações |
 | GET | `/api/public/status` | Mesmo formato, só dos serviços marcados como públicos (sem login) |
+| GET | `/api/public/services/{id}/badge.svg?days=30` | Badge SVG de uptime para README (só serviços públicos) |
 | GET | `/actuator/health` | Health check da própria API |
 
 ## Página de status
 
-Acesse `http://localhost:8080/`. Sem login, ela mostra os serviços marcados como **públicos**: status em verde ou vermelho, uptime de 24h, tempo médio de resposta, uma barra com as últimas 60 verificações e um gráfico do tempo de resposta. Em **Meu painel**, depois do login, você adiciona, verifica, exclui e escolhe quais serviços aparecem na página pública. A página se atualiza sozinha a cada 15 s.
+Acesse `http://localhost:8080/`. Sem login, ela mostra os serviços marcados como **públicos**:
+
+- status **online** (verde), **lento** (amarelo) ou **fora do ar** (vermelho);
+- uptime de 24 h, tempo médio de resposta e dias até o certificado SSL vencer (em destaque quando faltam menos de 14);
+- as últimas 60 verificações e um gráfico do tempo de resposta;
+- uma barra com os **últimos 90 dias**, um traço por dia, como nas páginas de status de grandes serviços. O resumo diário é agregado no banco e guardado em memória por alguns minutos, para não reprocessar 90 dias de dados a cada atualização da página.
+
+Em **Meu painel**, depois do login, você adiciona, verifica, exclui, escolhe quais serviços aparecem na página pública e copia o Markdown do badge de uptime. A página se atualiza sozinha a cada 15 s.
 
 Todas as rotas `/api/services/**` exigem `Authorization: Bearer <token>`. Cada usuário só enxerga os próprios serviços.
 
@@ -95,7 +108,11 @@ Como qualquer usuário cadastra uma URL e o servidor faz a requisição, sem ess
 
 ## Deploy
 
-Roda na AWS em uma instância EC2 com Docker Compose.
+Roda na AWS em uma instância EC2 com Docker Compose. Em produção, o [Caddy](https://caddyserver.com) fica na frente da API e cuida do HTTPS (certificado Let's Encrypt renovado automaticamente); a porta 8080 não fica exposta.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
 
 ## Próximas versões
 
