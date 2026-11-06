@@ -11,7 +11,11 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLPeerUnverifiedException;
+import java.net.ConnectException;
+import java.net.UnknownHostException;
+import java.nio.channels.UnresolvedAddressException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -54,12 +58,33 @@ public class HttpChecker {
         } catch (HttpTimeoutException e) {
             return CheckResult.failure(startedAt, elapsedMs(start), "Tempo esgotado após " + timeout.toSeconds() + "s");
         } catch (IOException e) {
-            String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            return CheckResult.failure(startedAt, elapsedMs(start), message);
+            return CheckResult.failure(startedAt, elapsedMs(start), describe(e));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return CheckResult.failure(startedAt, elapsedMs(start), "Verificação interrompida");
         }
+    }
+
+    /**
+     * Traduz as falhas de rede mais comuns para algo legível na página pública e no alerta.
+     * O HttpClient costuma embrulhar a causa real (ex.: DNS) dentro de um ConnectException sem mensagem.
+     */
+    static String describe(IOException e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof UnresolvedAddressException || t instanceof UnknownHostException) {
+                return "Domínio não encontrado (DNS)";
+            }
+            if (t instanceof SSLHandshakeException) {
+                return "Falha no certificado/TLS" + (t.getMessage() != null ? ": " + t.getMessage() : "");
+            }
+            if (t instanceof ConnectException && t.getMessage() != null && t.getMessage().contains("refused")) {
+                return "Conexão recusada";
+            }
+        }
+        if (e instanceof ConnectException) {
+            return "Não foi possível conectar";
+        }
+        return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
 
     /** Validade do certificado do servidor, lida da própria conexão TLS (sem requisição extra). */

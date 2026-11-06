@@ -25,16 +25,24 @@ public class CheckScheduler {
 
     private final MonitoredServiceRepository services;
     private final CheckRunner runner;
+    private final HttpChecker httpChecker;
+    private boolean warmedUp;
 
-    public CheckScheduler(MonitoredServiceRepository services, CheckRunner runner) {
+    public CheckScheduler(MonitoredServiceRepository services, CheckRunner runner, HttpChecker httpChecker) {
         this.services = services;
         this.runner = runner;
+        this.httpChecker = httpChecker;
     }
 
     @Scheduled(fixedDelayString = "${monitor.checker.tick-ms}", initialDelay = 5000)
     public void runDueChecks() {
+        List<MonitoredService> active = services.findByActiveTrue();
+        if (!warmedUp) {
+            warmUp(active);
+            warmedUp = true;
+        }
         Instant now = Instant.now();
-        List<MonitoredService> due = services.findByActiveTrue().stream().filter(s -> s.isDue(now)).toList();
+        List<MonitoredService> due = active.stream().filter(s -> s.isDue(now)).toList();
         if (due.isEmpty()) {
             return;
         }
@@ -56,5 +64,19 @@ public class CheckScheduler {
                 });
             }
         } // o close() espera todas as verificações terminarem antes do próximo tick
+    }
+
+    /**
+     * Logo depois que a aplicação sobe, a primeira requisição a cada site é bem mais lenta que as seguintes:
+     * a JVM ainda não otimizou o código de TLS e nenhuma conexão está aberta. Medido em produção, eram
+     * picos de ~1 s em todos os serviços ao mesmo tempo, a cada deploy. Esta rodada descartada
+     * "aquece" a JVM e o pool de conexões, para que o gráfico mostre a lentidão dos sites, e não a nossa.
+     */
+    private void warmUp(List<MonitoredService> active) {
+        long start = System.nanoTime();
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            active.forEach(service -> executor.submit(() -> httpChecker.check(service.getUrl())));
+        }
+        log.info("Aquecimento: {} serviço(s) em {} ms", active.size(), (System.nanoTime() - start) / 1_000_000);
     }
 }
