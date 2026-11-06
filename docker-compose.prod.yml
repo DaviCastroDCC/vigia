@@ -1,0 +1,27 @@
+# Produção: Caddy na frente da API com HTTPS; a API deixa de expor a porta 8080.
+# Uso: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+services:
+  api:
+    ports: !reset []
+    environment:
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+
+  caddy:
+    image: caddy:2.10-alpine
+    depends_on:
+      - api
+    environment:
+      DOMAIN: ${DOMAIN:?defina DOMAIN no arquivo .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
